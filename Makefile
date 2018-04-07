@@ -12,6 +12,21 @@ assembly_source_files := $(wildcard src/arch/$(arch)/*.asm)
 assembly_object_files := $(patsubst src/arch/$(arch)/%.asm, \
 	build/arch/$(arch)/%.o, $(assembly_source_files))
 
+# try to infer the correct QEMU
+ifndef QEMU
+QEMU := $(shell if which qemu-system-x86_64 > /dev/null; \
+	then echo 'qemu-system-x86_64'; exit; \
+	elif which x86_64-elf-qemu > /dev/null; \
+	then echo 'x86_64-elf-qemu'; exit; \
+	elif which qemu > /dev/null; \
+	then echo 'qemu'; exit; \
+	else \
+	echo "***" 1>&2; \
+	echo "*** Error: Couldn't find a working QEMU executable." 1>&2; \
+	echo "*** Is the directory containing the qemu binary in your PATH" 1>&2; \
+	echo "***" 1>&2; exit 1; fi)
+endif
+
 .PHONY: all clean run iso kernel
 
 all: $(kernel)
@@ -20,7 +35,8 @@ clean:
 	@rm -r build
 
 run: $(iso)
-	@qemu-system-x86_64 -cdrom $(iso)
+	@$(QEMU) -cdrom $<
+	# @$(QEMU) -no-reboot -parallel stdio -serial null -cdrom $<
 
 iso: $(iso)
 

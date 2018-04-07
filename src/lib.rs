@@ -2,6 +2,10 @@
 #![feature(unique, const_unique_new)]
 #![feature(const_fn)]
 #![feature(ptr_internals)]
+#![feature(alloc)]
+#![feature(allocator_api)]
+#![feature(global_allocator)]
+#![feature(const_atomic_usize_new)]
 #![no_std]
 
 #[macro_use]
@@ -16,6 +20,22 @@ extern crate volatile;
 extern crate spin;
 extern crate multiboot2;
 extern crate x86_64;
+extern crate linked_list_allocator;
+#[macro_use]
+extern crate alloc;
+#[macro_use]
+extern crate once;
+
+pub const HEAP_START: usize = 0o_000_001_000_000_0000;
+pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
+
+// use memory::heap_allocator::BumpAllocator;
+use linked_list_allocator::LockedHeap;
+#[global_allocator]
+// static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START,
+//     HEAP_START + HEAP_SIZE);
+static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
+
 
 #[no_mangle]
 pub extern fn rust_main(multiboot_information_address: usize) {
@@ -24,35 +44,32 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     print_name();
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
-    let memory_map_tag = boot_info.memory_map_tag()
-        .expect("Memory map tag required");
-    println!("memory areas:");
-    for area in memory_map_tag.memory_areas() {
-        println!("    start: 0x{:x}, length: 0x{:x}",
-            area.base_addr, area.length);
-    }
-
-    let elf_sections_tag = boot_info.elf_sections_tag()
-        .expect("Elf-sections tag required");
-    println!("kernel sections:");
-    for section in elf_sections_tag.sections() {
-        println!("    addr: 0x{:x}, size: 0x{:x}, flags: 0x{:x}",
-            section.addr, section.size, section.flags);
-    }
-
-    let kernel_start = elf_sections_tag.sections().map(|s| s.addr)
-        .min().unwrap();
-    let kernel_end = elf_sections_tag.sections().map(|s| s.addr + s.size)
-        .max().unwrap();
-
-    let multiboot_start = multiboot_information_address;
-    let multiboot_end = multiboot_start + (boot_info.total_size as usize);
-    println!("kernel start: 0x{:x}, kernel end: 0x{:x}", {kernel_start}, {kernel_end});
-    println!("multiboot start: 0x{:x}, multiboot end: 0x{:x}", {multiboot_start}, {multiboot_end});
+    enable_nxe_bit();
+    enable_write_protect_bit();
     
-    let mut frame_allocator = memory::AreaFrameAllocator::new(
-    kernel_start as usize, kernel_end as usize, multiboot_start,
-    multiboot_end, memory_map_tag.memory_areas());
+    // set up guard page and map the heap pages
+    memory::init(boot_info);
+
+    // initialize the heap allocator
+    unsafe {
+        HEAP_ALLOCATOR.lock().init(HEAP_START, HEAP_START + HEAP_SIZE);
+    }
+
+    use alloc::boxed::Box;
+    let mut heap_test = Box::new(42);
+    *heap_test -= 15;
+    let heap_test2 = Box::new("hello");
+    println!("{:?} {:?}", heap_test, heap_test2);
+
+    let mut vec_test = vec![1,2,3,4,5,6,7];
+    vec_test[3] = 42;
+    for i in &vec_test {
+        print!("{} ", i);
+    }
+
+    for i in 0..10000 {
+        format!("Some String");
+    }
     // use memory::FrameAllocator;
     // for i in 0.. {
     //     use memory::FrameAllocator;
@@ -62,10 +79,26 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     //         break;
     //     }
     // }
-
-    memory::test_paging(&mut frame_allocator);
+    
+    println!("It did not crash!");
 
     loop{}
+}
+
+fn enable_write_protect_bit() {
+    use x86_64::registers::control_regs::{cr0, cr0_write, Cr0};
+
+    unsafe { cr0_write(cr0() | Cr0::WRITE_PROTECT) };
+}
+
+fn enable_nxe_bit() {
+    use x86_64::registers::msr::{IA32_EFER, rdmsr, wrmsr};
+
+    let nxe_bit = 1 << 11;
+    unsafe {
+        let efer = rdmsr(IA32_EFER);
+        wrmsr(IA32_EFER, efer | nxe_bit);
+    }
 }
 
 #[lang = "eh_personality"] #[no_mangle] pub extern fn eh_personality() {}
