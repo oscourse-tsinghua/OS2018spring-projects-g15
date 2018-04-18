@@ -13,6 +13,10 @@
 mod vga_buffer;
 mod memory;
 mod interrupts;
+mod lang;
+
+#[macro_use]    // test!
+mod test_utils;
 
 #[macro_use]
 extern crate bitflags;
@@ -32,6 +36,13 @@ extern crate once;
 extern crate lazy_static;
 extern crate bit_field;
 
+#[allow(dead_code)]
+#[cfg(target_arch = "x86_64")]
+#[path = "arch/x86_64/mod.rs"]
+mod arch;
+
+use lang::{print_name, eh_personality, panic_fmt};
+
 pub const HEAP_START: usize = 0o_000_001_000_000_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
 
@@ -50,8 +61,7 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     print_name();
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
-    enable_nxe_bit();
-    enable_write_protect_bit();
+    arch::init();
     
     // set up guard page and map the heap pages
     let mut memory_controller = memory::init(boot_info);
@@ -61,79 +71,50 @@ pub extern fn rust_main(multiboot_information_address: usize) {
         HEAP_ALLOCATOR.lock().init(HEAP_START, HEAP_START + HEAP_SIZE);
     }
 
-    use alloc::boxed::Box;
-    let mut heap_test = Box::new(42);
-    *heap_test -= 15;
-    let heap_test2 = Box::new("hello");
-    println!("{:?} {:?}", heap_test, heap_test2);
-
-    let mut vec_test = vec![1,2,3,4,5,6,7];
-    vec_test[3] = 42;
-    for i in &vec_test {
-        print!("{} ", i);
-    }
-
-    // for i in 0..10000 {
-    //     format!("Some String");
-    // }
-    // use memory::FrameAllocator;
-    // for i in 0.. {
-    //     use memory::FrameAllocator;
-    //     // println!("{:?}", frame_allocator.allocate_frame());
-    //     if let None = frame_allocator.allocate_frame() {
-    //         println!("allocated {} frames", i);
-    //         break;
-    //     }
-    // }
-    
     // initialize our IDT
     interrupts::init(&mut memory_controller);
-    // interrupts::set_keyboard_fn(vga_buffer::WRITER.);
 
-    fn stack_overflow() {
-        stack_overflow(); // for each recursion, the return address is pushed
-    }
-    // trigger a stack overflow
-    stack_overflow();
+    test!(global_allocator);
+    test!(alloc_sth);
+    test!(guard_page);
 
     println!("It did not crash!");
 
     loop{}
+    test_end!();
 }
 
-fn enable_write_protect_bit() {
-    use x86_64::registers::control_regs::{cr0, cr0_write, Cr0};
-
-    unsafe { cr0_write(cr0() | Cr0::WRITE_PROTECT) };
-}
-
-fn enable_nxe_bit() {
-    use x86_64::registers::msr::{IA32_EFER, rdmsr, wrmsr};
-
-    let nxe_bit = 1 << 11;
-    unsafe {
-        let efer = rdmsr(IA32_EFER);
-        wrmsr(IA32_EFER, efer | nxe_bit);
+mod test {
+    pub fn global_allocator() {
+        for i in 0..10000 {
+            format!("Some String");
+        }
     }
-}
 
-#[lang = "eh_personality"] #[no_mangle] pub extern fn eh_personality() {}
+    pub fn alloc_sth() {
+        use alloc::boxed::Box;
+        let mut heap_test = Box::new(42);
+        *heap_test -= 15;
+        let heap_test2 = Box::new("hello");
+        println!("{:?} {:?}", heap_test, heap_test2);
 
-#[lang = "panic_fmt"] #[no_mangle]
-pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &str, line: u32) -> ! {
-    println!("\n\n !! KERNEL PANIC !!");
-    println!("{} at line {}:", file, line);
-    println!("    {}", fmt);
-    loop{}
-}
+        let mut vec_test = vec![1,2,3,4,5,6,7];
+        vec_test[3] = 42;
+        for i in &vec_test {
+            print!("{} ", i);
+        }
+    }
 
-fn print_name() {
-    vga_buffer::clear_screen();
-    println!(" _______     __     __    _______    ______     _______     ________  ");
-    println!("|  ____  \\  |  |   |  |  /  _____|  / _____ \\  |  _____ \\  |  ______| ");
-    println!("| |____  |  |  |   |  | |  |       | |     | | | |_____ |  | |______  ");
-    println!("|  ___  _/  |  |   |  | |  |       | |     | | |  ___  _/  |  ______| ");
-    println!("| |   \\ \\   |  |   |  | |  |       | |     | | | |   \\ \\   | |        ");
-    println!("| |    \\ \\  |  \\___/  | |  |_____  | |_____| | | |    \\ \\  | |______  ");
-    println!("|_/     \\_\\  \\_______/   \\_______|  \\_______/  |_/     \\_\\ |________| ");
+    pub fn guard_page() {
+        use x86_64;
+        // invoke a breakpoint exception
+        x86_64::instructions::interrupts::int3();
+
+        fn stack_overflow() {
+            stack_overflow(); // for each recursion, the return address is pushed
+        }
+
+        // trigger a stack overflow
+        stack_overflow();
+    }
 }

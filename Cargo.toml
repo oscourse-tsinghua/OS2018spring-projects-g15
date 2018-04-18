@@ -6,6 +6,10 @@ authors = ["ivanium <ivanium@126.com>; Gword <xxx@yyy.zzz>"]
 [lib]
 crate-type = ["staticlib"]
 
+[features]
+qemu_auto_exit = []
+test = []
+
 [dependencies]
 rlibc = "1.0"
 volatile = "0.1.0"

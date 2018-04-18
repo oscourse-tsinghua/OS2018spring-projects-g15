@@ -12,6 +12,9 @@ assembly_source_files := $(wildcard src/arch/$(arch)/*.asm)
 assembly_object_files := $(patsubst src/arch/$(arch)/%.asm, \
 	build/arch/$(arch)/%.o, $(assembly_source_files))
 
+qemu_opts := -device isa-debug-exit # enable shutdown inside the qemu 
+features := qemu_auto_exit,test
+
 # try to infer the correct QEMU
 ifndef QEMU
 QEMU := $(shell if which qemu-system-x86_64 > /dev/null; \
@@ -35,7 +38,7 @@ clean:
 	@rm -r build
 
 run: $(iso)
-	@$(QEMU) -cdrom $<
+	@$(QEMU) -cdrom $< $(qemu-opts) || [ $$? -eq 11 ]
 	# @$(QEMU) -no-reboot -parallel stdio -serial null -cdrom $<
 
 iso: $(iso)
@@ -53,7 +56,7 @@ $(kernel): kernel $(rust_os) $(assembly_object_files) $(linker_script)
 		$(assembly_object_files) $(rust_os)
 
 kernel:
-	@RUST_TARGET_PATH=$(shell pwd) xargo build --target $(target)
+	@RUST_TARGET_PATH=$(shell pwd) xargo build --target $(target) --features $(features)
 
 # compile assembly files
 build/arch/$(arch)/%.o: src/arch/$(arch)/%.asm
