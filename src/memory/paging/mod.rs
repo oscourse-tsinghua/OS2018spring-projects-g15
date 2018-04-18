@@ -3,7 +3,7 @@ pub use self::mapper::Mapper;
 use self::table::{Table, Level4};
 use core::ptr::Unique;
 use self::temporary_page::TemporaryPage;
-use core::ops::{Deref, DerefMut};
+use core::ops::{Deref, DerefMut, Add};
 use multiboot2::BootInformation;
 use memory::{PAGE_SIZE, Frame, FrameAllocator};
 
@@ -22,6 +22,14 @@ pub struct Page {
    number: usize,
 }
 
+impl Add<usize> for Page {
+    type Output = Page;
+
+    fn add(self, rhs: usize) -> Page {
+        Page { number: self.number + rhs }
+    }
+}
+
 impl Page {
     fn p4_index(&self) -> usize {
         (self.number >> 27) & 0o777
@@ -36,7 +44,7 @@ impl Page {
         (self.number >> 0) & 0o777
     }
 
-    fn start_address(&self) -> usize {
+    pub fn start_address(&self) -> usize {
         self.number * PAGE_SIZE
     }
 
@@ -55,6 +63,7 @@ impl Page {
     }
 }
 
+#[derive(Clone)]
 pub struct PageIter {
     start: Page,
     end: Page,

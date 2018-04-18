@@ -6,11 +6,13 @@
 #![feature(allocator_api)]
 #![feature(global_allocator)]
 #![feature(const_atomic_usize_new)]
+#![feature(abi_x86_interrupt)]
 #![no_std]
 
 #[macro_use]
 mod vga_buffer;
 mod memory;
+mod interrupts;
 
 #[macro_use]
 extern crate bitflags;
@@ -21,10 +23,14 @@ extern crate spin;
 extern crate multiboot2;
 extern crate x86_64;
 extern crate linked_list_allocator;
+
 #[macro_use]
 extern crate alloc;
 #[macro_use]
 extern crate once;
+#[macro_use]
+extern crate lazy_static;
+extern crate bit_field;
 
 pub const HEAP_START: usize = 0o_000_001_000_000_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
@@ -48,7 +54,7 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     enable_write_protect_bit();
     
     // set up guard page and map the heap pages
-    memory::init(boot_info);
+    let mut memory_controller = memory::init(boot_info);
 
     // initialize the heap allocator
     unsafe {
@@ -67,9 +73,9 @@ pub extern fn rust_main(multiboot_information_address: usize) {
         print!("{} ", i);
     }
 
-    for i in 0..10000 {
-        format!("Some String");
-    }
+    // for i in 0..10000 {
+    //     format!("Some String");
+    // }
     // use memory::FrameAllocator;
     // for i in 0.. {
     //     use memory::FrameAllocator;
@@ -80,6 +86,16 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     //     }
     // }
     
+    // initialize our IDT
+    interrupts::init(&mut memory_controller);
+    // interrupts::set_keyboard_fn(vga_buffer::WRITER.);
+
+    fn stack_overflow() {
+        stack_overflow(); // for each recursion, the return address is pushed
+    }
+    // trigger a stack overflow
+    stack_overflow();
+
     println!("It did not crash!");
 
     loop{}
