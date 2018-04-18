@@ -13,7 +13,15 @@ assembly_object_files := $(patsubst src/arch/$(arch)/%.asm, \
 	build/arch/$(arch)/%.o, $(assembly_source_files))
 
 qemu_opts := -device isa-debug-exit # enable shutdown inside the qemu 
-features := qemu_auto_exit,test
+features := qemu_auto_exit
+
+ifdef travis
+	test := 1
+endif
+
+ifdef test
+	features := $(features),test
+endif
 
 # try to infer the correct QEMU
 ifndef QEMU
