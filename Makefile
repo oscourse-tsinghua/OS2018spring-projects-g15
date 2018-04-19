@@ -23,6 +23,8 @@ endif
 
 ifdef test
 	features := $(features),test
+else
+	features := qemu_auto_exit
 endif
 
 # try to infer the correct QEMU
