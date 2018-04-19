@@ -1,6 +1,7 @@
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::PrivilegeLevel;
+use memory::paging::entry::EntryFlags;
 
 pub struct Gdt {
     table: [u64; 8],
@@ -68,7 +69,7 @@ bitflags! {
 
 impl Descriptor {
     pub fn kernel_code_segment() -> Descriptor {
-        let flags = USER_SEGMENT | PRESENT | EXECUTABLE | LONG_MODE;
+        let flags = DescriptorFlags::USER_SEGMENT | DescriptorFlags::PRESENT | DescriptorFlags::EXECUTABLE | DescriptorFlags::LONG_MODE;
         Descriptor::UserSegment(flags.bits())
     }
 
@@ -78,7 +79,7 @@ impl Descriptor {
 
         let ptr = tss as *const _ as u64;
 
-        let mut low = PRESENT.bits();
+        let mut low = DescriptorFlags::PRESENT.bits();
         // base
         low.set_bits(16..40, ptr.get_bits(0..24));
         low.set_bits(56..64, ptr.get_bits(24..32));

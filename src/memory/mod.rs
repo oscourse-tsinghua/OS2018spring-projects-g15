@@ -3,9 +3,10 @@ pub use self::paging::{test_paging, remap_the_kernel};
 pub use self::stack_allocator::Stack;
 use self::paging::PhysicalAddress;
 use multiboot2::BootInformation;
+use self::paging::entry::EntryFlags;
 
 mod area_frame_allocator;
-mod paging;
+pub mod paging;
 pub mod heap_allocator;
 mod stack_allocator;
 
@@ -115,7 +116,7 @@ pub fn init(boot_info: &BootInformation) -> MemoryController {
     let heap_end_page = Page::containing_address(HEAP_START + HEAP_SIZE-1);
 
     for page in Page::range_inclusive(heap_start_page, heap_end_page) {
-        active_table.map(page, paging::WRITABLE, &mut frame_allocator);
+        active_table.map(page, EntryFlags::WRITABLE, &mut frame_allocator);
     }
 
     let stack_allocator = {
