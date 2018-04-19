@@ -7,16 +7,17 @@
 #![feature(global_allocator)]
 #![feature(const_atomic_usize_new)]
 #![feature(abi_x86_interrupt)]
+#![feature(iterator_step_by)]
 #![no_std]
 
 #[macro_use]
 mod vga_buffer;
+#[macro_use]    // test!
+mod test_utils;
 mod memory;
 mod interrupts;
 mod lang;
-
-#[macro_use]    // test!
-mod test_utils;
+mod utils;
 
 #[macro_use]
 extern crate bitflags;
@@ -62,7 +63,12 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
     arch::init();
-    
+
+    println!("MP = {:?}", arch::driver::mp::find_mp());
+    println!("RDSP = {:?}", arch::driver::acpi::find_rsdp());
+
+    test!(extern_func);
+    loop{}
     // set up guard page and map the heap pages
     let mut memory_controller = memory::init(boot_info);
 
@@ -81,10 +87,17 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     println!("It did not crash!");
 
     loop{}
-    test_end!();
+    // test_end!();
 }
 
 mod test {
+    pub fn extern_func() {
+        extern {
+            fn foo(x: i32) -> i32;
+        }
+
+        println!("extern fn foo(2): {}", unsafe{foo(2)});
+    }
     pub fn global_allocator() {
         for i in 0..10000 {
             format!("Some String");

@@ -10,6 +10,9 @@ crate-type = ["staticlib"]
 qemu_auto_exit = []
 test = []
 
+[build-dependencies]
+cc = "1.0"
+
 [dependencies]
 rlibc = "1.0"
 volatile = "0.1.0"
