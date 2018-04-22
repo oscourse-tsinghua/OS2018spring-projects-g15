@@ -1,5 +1,5 @@
 pub use self::entry::*;
-use memory::paging::entry::EntryFlags;
+use arch::paging::entry::EntryFlags;
 pub use self::mapper::Mapper;
 use self::table::{Table, Level4};
 use core::ptr::Unique;

@@ -1,9 +1,9 @@
 use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
 use memory::FrameAllocator;
-use memory::paging::entry::*;
-use memory::paging::entry::EntryFlags;
-use memory::paging::ENTRY_COUNT;
+use arch::paging::entry::*;
+use arch::paging::entry::EntryFlags;
+use arch::paging::ENTRY_COUNT;
 
 pub struct Table<L: TableLevel> {
     entries: [Entry; ENTRY_COUNT],

@@ -6,10 +6,11 @@ os := Rucore_OS
 target ?= $(arch)-$(os)
 rust_os := target/$(target)/debug/lib$(os).a
 
-linker_script := src/arch/$(arch)/linker.ld
-grub_cfg := src/arch/$(arch)/grub.cfg
-assembly_source_files := $(wildcard src/arch/$(arch)/*.asm)
-assembly_object_files := $(patsubst src/arch/$(arch)/%.asm, \
+boot_src := src/arch/$(arch)/boot
+linker_script := $(boot_src)/linker.ld
+grub_cfg := $(boot_src)/grub.cfg
+assembly_source_files := $(wildcard $(boot_src)/*.asm)
+assembly_object_files := $(patsubst $(boot_src)/%.asm, \
 	build/arch/$(arch)/%.o, $(assembly_source_files))
 
 qemu_opts := -device isa-debug-exit # enable shutdown inside the qemu 
@@ -42,7 +43,7 @@ QEMU := $(shell if which qemu-system-x86_64 > /dev/null; \
 	echo "***" 1>&2; exit 1; fi)
 endif
 
-.PHONY: all clean run iso kernel
+.PHONY: all clean run iso kernel build debug_asm
 
 all: $(kernel)
 
@@ -54,6 +55,11 @@ run: $(iso)
 	# @$(QEMU) -no-reboot -parallel stdio -serial null -cdrom $<
 
 iso: $(iso)
+
+build: iso
+
+debug_asm:
+	@$(objdump) -dS $(kernel) | less
 
 $(iso): $(kernel) $(grub_cfg)
 	@mkdir -p build/isofiles/boot/grub
@@ -71,6 +77,6 @@ kernel:
 	@RUST_TARGET_PATH=$(shell pwd) xargo build --target $(target) --features $(features)
 
 # compile assembly files
-build/arch/$(arch)/%.o: src/arch/$(arch)/%.asm
+build/arch/$(arch)/%.o: $(boot_src)/%.asm
 	@mkdir -p $(shell dirname $@)
 	@nasm -felf64 $< -o $@
