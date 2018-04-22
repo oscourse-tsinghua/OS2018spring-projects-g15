@@ -8,6 +8,7 @@
 #![feature(const_atomic_usize_new)]
 #![feature(abi_x86_interrupt)]
 #![feature(iterator_step_by)]
+#![feature(core_intrinsics)]
 #![no_std]
 
 #[macro_use]
@@ -15,9 +16,10 @@ mod vga_buffer;
 #[macro_use]    // test!
 mod test_utils;
 mod memory;
-mod interrupts;
+// mod interrupts;
 mod lang;
 mod utils;
+mod consts;
 
 #[macro_use]
 extern crate bitflags;
@@ -36,6 +38,9 @@ extern crate once;
 #[macro_use]
 extern crate lazy_static;
 extern crate bit_field;
+
+
+extern crate syscall;
 
 #[allow(dead_code)]
 #[cfg(target_arch = "x86_64")]
@@ -67,8 +72,8 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     println!("MP = {:?}", arch::driver::mp::find_mp());
     println!("RDSP = {:?}", arch::driver::acpi::find_rsdp());
 
-    test!(extern_func);
-    loop{}
+    arch::driver::init();
+
     // set up guard page and map the heap pages
     let mut memory_controller = memory::init(boot_info);
 
@@ -78,7 +83,7 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     }
 
     // initialize our IDT
-    interrupts::init(&mut memory_controller);
+    arch::interrupts::init(&mut memory_controller);
 
     test!(global_allocator);
     test!(alloc_sth);
