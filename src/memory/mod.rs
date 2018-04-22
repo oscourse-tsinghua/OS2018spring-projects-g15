@@ -1,12 +1,13 @@
 pub use self::area_frame_allocator::AreaFrameAllocator;
-pub use self::paging::{test_paging, remap_the_kernel};
+pub use arch::paging::{test_paging, remap_the_kernel};
 pub use self::stack_allocator::Stack;
-use self::paging::PhysicalAddress;
+use arch::paging::PhysicalAddress;
 use multiboot2::BootInformation;
-use self::paging::entry::EntryFlags;
+use arch::paging::entry::EntryFlags;
+use arch::*;
 
 mod area_frame_allocator;
-pub mod paging;
+
 pub mod heap_allocator;
 mod stack_allocator;
 
@@ -14,20 +15,27 @@ pub const PAGE_SIZE: usize = 4096;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Frame {
-    number: usize,
+    pub(super) number: usize,
 }
 
 impl Frame {
-    fn containing_address(address: usize) -> Frame {
+    pub fn containing_address(address: usize) -> Frame {
         Frame{ number: address / PAGE_SIZE }
     }
 
-    fn start_address(&self) -> PhysicalAddress {
+    pub fn start_address(&self) -> PhysicalAddress {
         self.number * PAGE_SIZE
     }
 
-    fn clone(&self) -> Frame {
+    pub fn clone(&self) -> Frame {
         Frame { number: self.number }
+    }
+    
+    pub fn range_inclusive(start: Frame, end: Frame) -> FrameIter {
+        FrameIter {
+            start: start,
+            end: end,
+        }
     }
 }
 
@@ -36,16 +44,7 @@ pub trait FrameAllocator {
     fn deallocate_frame(&mut self, frame: Frame);
 }
 
-impl Frame {
-    fn range_inclusive(start: Frame, end: Frame) -> FrameIter {
-        FrameIter {
-            start: start,
-            end: end,
-        }
-    }
-}
-
-struct FrameIter {
+pub struct FrameIter {
     start: Frame,
     end: Frame,
 }

@@ -1,7 +1,7 @@
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::PrivilegeLevel;
-use memory::paging::entry::EntryFlags;
+use arch::paging::entry::EntryFlags;
 
 pub struct Gdt {
     table: [u64; 8],
