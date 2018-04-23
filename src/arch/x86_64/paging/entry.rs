@@ -2,6 +2,7 @@ use memory::Frame;
 use multiboot2::ElfSection;
 
 pub struct Entry(u64);
+
 impl Entry {
     pub fn is_unused(&self) -> bool {
         self.0 == 0
@@ -26,8 +27,8 @@ impl Entry {
     }
 
     pub fn set(&mut self, frame: Frame, flags: EntryFlags) {
-        assert!(frame.start_address() & !0x000fffff_fffff000 == 0);
-        self.0 = (frame.start_address() as u64) | flags.bits();
+        assert!(frame.start_address().0 & !0x000fffff_fffff000 == 0);
+        self.0 = (frame.start_address().0) | flags.bits();
     }
 }
 
@@ -45,7 +46,6 @@ bitflags! {
         const NO_EXECUTE =      1 << 63;
     }
 }
-
 
 
 impl EntryFlags {
@@ -67,5 +67,15 @@ impl EntryFlags {
         }
 
         flags
+    }
+}
+
+use core::fmt;
+use core::fmt::Debug;
+
+impl Debug for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{:#014X} {:?}", self.0 & 0x000fffff_fffff000, self.flags());
+        Ok(())
     }
 }

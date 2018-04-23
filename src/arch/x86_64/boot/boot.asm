@@ -1,4 +1,5 @@
 global start
+global stack_bottom
 extern long_mode_start
 
 section .text
@@ -16,6 +17,7 @@ start:
 
     ; load the 64-bit GDT
     lgdt [gdt64.pointer]
+
     jmp gdt64.code:long_mode_start
 
     ; print `OK` to screen
@@ -23,15 +25,16 @@ start:
     hlt
 
 set_up_page_tables:
-    ; recursive map the page table
+    ; map P4 table recursively
     mov eax, p4_table
     or eax, 0b11 ; present + writable
     mov [p4_table + 511 * 8], eax
-    
-    ; map first P4 entry to P3 table
+
+    ; map first & 510th P4 entry to P3 table
     mov eax, p3_table
     or eax, 0b11 ; present + writable
     mov [p4_table], eax
+    mov [p4_table + 510 * 8], eax
 
     ; map first P3 entry to P2 table
     mov eax, p2_table
@@ -40,6 +43,7 @@ set_up_page_tables:
 
     ; map each P2 entry to a huge 2MiB page
     mov ecx, 0         ; counter variable
+
 .map_p2_table:
     ; map ecx-th P2 entry to a huge page that starts at address 2MiB*ecx
     mov eax, 0x200000  ; 2MiB
@@ -50,6 +54,7 @@ set_up_page_tables:
     inc ecx            ; increase counter
     cmp ecx, 512       ; if counter == 512, the whole P2 table is mapped
     jne .map_p2_table  ; else map the next entry
+
     ret
 
 enable_paging:
@@ -164,5 +169,5 @@ p2_table:
     resb 4096
 
 stack_bottom:
-    resb 4096*4
+    resb 4096 * 8
 stack_top:

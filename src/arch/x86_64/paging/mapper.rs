@@ -1,7 +1,7 @@
-use super::{VirtualAddress, PhysicalAddress, Page, ENTRY_COUNT};
+use super::{Page, ENTRY_COUNT, EntryFlags};
 use super::entry::*;
 use super::table::{self, Table, Level4, Level1};
-use memory::{PAGE_SIZE, Frame, FrameAllocator};
+use memory::*;
 use core::ptr::Unique;
 
 pub struct Mapper {
@@ -15,15 +15,18 @@ impl Mapper {
         }
     }
 
-    pub fn p4(&self) -> &Table<Level4> {    unsafe { self.p4.as_ref() } }
-    pub fn p4_mut(&mut self) -> &mut Table<Level4> {    unsafe { self.p4.as_mut() } }
+    pub fn p4(&self) -> &Table<Level4> {
+        unsafe { self.p4.as_ref() }
+    }
 
-    pub fn translate(&self, virtual_address: VirtualAddress)
-        -> Option<PhysicalAddress>
-    {
+    pub fn p4_mut(&mut self) -> &mut Table<Level4> {
+        unsafe { self.p4.as_mut() }
+    }
+
+    pub fn translate(&self, virtual_address: VirtualAddress) -> Option<PhysicalAddress> {
         let offset = virtual_address % PAGE_SIZE;
         self.translate_page(Page::containing_address(virtual_address))
-            .map(|frame| frame.number * PAGE_SIZE + offset)
+            .map(|frame| PhysicalAddress((frame.start_address().get() + offset) as u64))
     }
 
     pub fn translate_page(&self, page: Page) -> Option<Frame> {
@@ -36,11 +39,11 @@ impl Mapper {
                 if let Some(start_frame) = p3_entry.pointed_frame() {
                     if p3_entry.flags().contains(EntryFlags::HUGE_PAGE) {
                         // address must be 1GiB aligned
-                        assert!(start_frame.number % (ENTRY_COUNT * ENTRY_COUNT) == 0);
-                        return Some(Frame {
-                            number: start_frame.number + page.p2_index() *
-                                    ENTRY_COUNT + page.p1_index(),
-                        });
+                        assert!(start_frame.start_address().get() % (ENTRY_COUNT * ENTRY_COUNT * PAGE_SIZE) == 0);
+                        return Some(Frame::containing_address(
+                            start_frame.start_address().get() + 
+                            (page.p2_index() * ENTRY_COUNT + page.p1_index()) * PAGE_SIZE
+                        ));
                     }
                 }
                 if let Some(p2) = p3.next_table(page.p3_index()) {
@@ -49,10 +52,10 @@ impl Mapper {
                     if let Some(start_frame) = p2_entry.pointed_frame() {
                         if p2_entry.flags().contains(EntryFlags::HUGE_PAGE) {
                             // address must be 2MiB aligned
-                            assert!(start_frame.number % ENTRY_COUNT == 0);
-                            return Some(Frame {
-                                number: start_frame.number + page.p1_index()
-                            });
+                            assert!(start_frame.start_address().get() % ENTRY_COUNT == 0);
+                            return Some(Frame::containing_address(
+                                start_frame.start_address().get() + page.p1_index() * PAGE_SIZE
+                            ));
                         }
                     }
                 }
@@ -70,7 +73,8 @@ impl Mapper {
                     allocator: &mut A)
         where A: FrameAllocator
     {
-        let mut p3 = self.p4_mut().next_table_create(page.p4_index(), allocator);
+        let p4 = self.p4_mut();
+        let mut p3 = p4.next_table_create(page.p4_index(), allocator);
         let mut p2 = p3.next_table_create(page.p3_index(), allocator);
         let mut p1 = p2.next_table_create(page.p2_index(), allocator);
 
@@ -85,19 +89,19 @@ impl Mapper {
         self.map_to(page, frame, flags, allocator)
     }
 
-    pub fn identity_map<A>(&mut self,
-                            frame: Frame,
-                            flags: EntryFlags,
-                            allocator: &mut A)
+    pub fn identity_map<A>(&mut self, frame: Frame, flags: EntryFlags, allocator: &mut A)
         where A: FrameAllocator
     {
-        let page = Page::containing_address(frame.start_address());
+        let page = Page::containing_address(frame.start_address().to_identity_virtual());
         self.map_to(page, frame, flags, allocator)
     }
 
     pub fn unmap<A>(&mut self, page: Page, allocator: &mut A)
         where A: FrameAllocator
     {
+        use x86_64::instructions::tlb;
+        use x86_64::VirtualAddress;
+
         assert!(self.translate(page.start_address()).is_some());
 
         let p1 = self.p4_mut()
@@ -107,11 +111,17 @@ impl Mapper {
                     .expect("mapping code does not support huge pages");
         let frame = p1[page.p1_index()].pointed_frame().unwrap();
         p1[page.p1_index()].set_unused();
-
-        use x86_64::instructions::tlb;
-        use x86_64::VirtualAddress;
         tlb::flush(VirtualAddress(page.start_address()));
         // TODO free p(1,2,3) table if empty
-        // allocator.deallocate_frame(frame);
+        //allocator.deallocate_frame(frame);
+    }
+}
+
+use core::fmt;
+use core::fmt::Debug;
+
+impl Debug for Mapper {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{:?}", self.p4())
     }
 }

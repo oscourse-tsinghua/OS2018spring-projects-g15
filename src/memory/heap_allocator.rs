@@ -41,6 +41,7 @@ unsafe impl<'a> Alloc for &'a BumpAllocator {
         // do nothing, leak memory
     }
 }
+
 /// Align downwards. Returns the greatest x with alignment `align`
 /// so that x <= addr. The alignment must be a power of 2.
 pub fn align_down(addr: usize, align: usize) -> usize {
