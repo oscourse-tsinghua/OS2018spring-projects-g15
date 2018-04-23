@@ -11,10 +11,10 @@
 #![feature(core_intrinsics)]
 #![no_std]
 
-#[macro_use]
-mod vga_buffer;
 #[macro_use]    // test!
 mod test_utils;
+#[macro_use]
+mod io;
 mod memory;
 // mod interrupts;
 mod lang;
