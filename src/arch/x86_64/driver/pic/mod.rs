@@ -55,7 +55,7 @@ pub fn enable_irq(irq: u8)
     }
 }
 
-pub fn ack(irq: usize) {
+pub fn ack(irq: u8) {
     assert!(irq < 16);
     MASTER.lock().ack();
     if irq >= 8 {

@@ -9,6 +9,7 @@
 #![feature(abi_x86_interrupt)]
 #![feature(iterator_step_by)]
 #![feature(core_intrinsics)]
+#![feature(match_default_bindings)]
 #![no_std]
 
 #[macro_use]    // test!
@@ -83,11 +84,11 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     }
 
     // initialize our IDT
-    arch::interrupts::init(&mut memory_controller);
+    arch::idt::init(&mut memory_controller);
 
     test!(global_allocator);
     test!(alloc_sth);
-    test!(guard_page);
+    // test!(guard_page);
 
     println!("It did not crash!");
 
