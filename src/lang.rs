@@ -3,7 +3,7 @@
 use core;
 use arch::cpu;
 
-use vga_buffer;
+use io;
 
 #[lang = "eh_personality"] #[no_mangle] pub extern fn eh_personality() {}
 
@@ -20,7 +20,7 @@ pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &str, line: u32) -> ! {
 }
 
 pub fn print_name() {
-    vga_buffer::clear_screen();
+    io::clear_screen();
     println!(" _______     __     __    _______    ______     _______     ________  ");
     println!("|  ____  \\  |  |   |  |  /  _____|  / _____ \\  |  _____ \\  |  ______| ");
     println!("| |____  |  |  |   |  | |  |       | |     | | | |_____ |  | |______  ");
