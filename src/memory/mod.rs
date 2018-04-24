@@ -5,8 +5,8 @@ pub use self::address::*;
 pub use self::frame::*;
 
 use multiboot2::BootInformation;
-use arch::paging::entry::EntryFlags;
-use arch::*;
+use arch::paging;
+use arch::paging::EntryFlags;
 
 use consts::KERNEL_OFFSET;
 
@@ -24,11 +24,10 @@ pub fn init(boot_info: &BootInformation) -> MemoryController {
     let elf_sections_tag = boot_info.elf_sections_tag().expect(
         "Elf sections tag required");
 
-    let kernel_start = elf_sections_tag.sections()
-        .filter(|s| s.is_allocated()).map(|s| s.addr).min().unwrap();
-    let kernel_end = elf_sections_tag.sections()
-        .filter(|s| s.is_allocated()).map(|s| s.addr + s.size).max()
-        .unwrap();
+    let kernel_start = PhysicalAddress(elf_sections_tag.sections()
+        .filter(|s| s.is_allocated()).map(|s| s.start_address()).min().unwrap() as u64);
+    let kernel_end = PhysicalAddress::from_kernel_virtual(elf_sections_tag.sections()
+        .filter(|s| s.is_allocated()).map(|s| s.end_address()).max().unwrap());
 
     let boot_info_start = PhysicalAddress(boot_info.start_address() as u64);
     let boot_info_end = PhysicalAddress(boot_info.end_address() as u64);
@@ -42,21 +41,20 @@ pub fn init(boot_info: &BootInformation) -> MemoryController {
     println!("memory area:");
     for area in memory_map_tag.memory_areas() {
         println!("  addr: {:#x}, size: {:#x}", area.base_addr, area.length);
-    }   
+    }    
 
     let mut frame_allocator = AreaFrameAllocator::new(
-        kernel_start as usize, kernel_end as usize,
-        boot_info.start_address(), boot_info.end_address(),
+        kernel_start, kernel_end,
+        boot_info_start, boot_info_end,
         memory_map_tag.memory_areas());
 
-    let mut active_table = remap_the_kernel(&mut frame_allocator,
-        boot_info);
+    let mut active_table = remap_the_kernel(&mut frame_allocator, boot_info);
 
     use self::paging::Page;
-    use {HEAP_START, HEAP_SIZE};
+    use consts::{KERNEL_HEAP_OFFSET, KERNEL_HEAP_SIZE};
 
-    let heap_start_page = Page::containing_address(HEAP_START);
-    let heap_end_page = Page::containing_address(HEAP_START + HEAP_SIZE-1);
+    let heap_start_page = Page::containing_address(KERNEL_HEAP_OFFSET);
+    let heap_end_page = Page::containing_address(KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE-1);
 
     for page in Page::range_inclusive(heap_start_page, heap_end_page) {
         active_table.map(page, EntryFlags::WRITABLE, &mut frame_allocator);
@@ -66,10 +64,10 @@ pub fn init(boot_info: &BootInformation) -> MemoryController {
         let stack_alloc_start = heap_end_page + 1;
         let stack_alloc_end = stack_alloc_start + 100;
         let stack_alloc_range = Page::range_inclusive(stack_alloc_start,
-                                                        stack_alloc_end);
+                                                      stack_alloc_end);
         stack_allocator::StackAllocator::new(stack_alloc_range)
     };
-
+    
     MemoryController {
         active_table: active_table,
         frame_allocator: frame_allocator,
@@ -161,7 +159,7 @@ impl MemoryController {
         stack_allocator.alloc_stack(active_table, frame_allocator,
                                     size_in_pages)
     }
-
+    
     pub fn map_page_identity(&mut self, addr: usize) {
         let frame = Frame::containing_address(addr);
         let flags = EntryFlags::WRITABLE;

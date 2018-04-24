@@ -1,2 +1,2 @@
-[target.x86_64-Rucore_OS.dependencies]
+[target.x86_64-rucore.dependencies]
 alloc = {}

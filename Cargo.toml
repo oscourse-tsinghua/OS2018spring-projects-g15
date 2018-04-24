@@ -1,5 +1,5 @@
 [package]
-name = "Rucore_OS"
+name = "rucore"
 version = "0.1.0"
 authors = ["ivanium <ivanium@126.com>; Gword <xxx@yyy.zzz>"]
 
@@ -9,6 +9,7 @@ crate-type = ["staticlib"]
 [features]
 qemu_auto_exit = []
 test = []
+use_apic = []
 
 [build-dependencies]
 cc = "1.0"

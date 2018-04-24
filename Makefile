@@ -2,7 +2,7 @@ arch ?= x86_64
 kernel := build/kernel-$(arch).bin
 iso := build/os-$(arch).iso
 
-os := Rucore_OS
+os := rucore
 target ?= $(arch)-$(os)
 rust_os := target/$(target)/debug/lib$(os).a
 
@@ -13,19 +13,17 @@ assembly_source_files := $(wildcard $(boot_src)/*.asm)
 assembly_object_files := $(patsubst $(boot_src)/%.asm, \
 	build/arch/$(arch)/%.o, $(assembly_source_files))
 
-qemu_opts := -device isa-debug-exit # enable shutdown inside the qemu 
-# features := qemu_auto_exit
-
-travis := 1
+qemu_opts := -serial mon:stdio
+features := use_apic
 
 ifdef travis
-	test := 1
+test := 1
+features := $(features) qemu_auto_exit
 endif
 
 ifdef test
-	features := $(features),test
-else
-	features := qemu_auto_exit
+features := $(features) test
+qemu_opts := $(qemu_opts) -device -isa-debug-exit
 endif
 
 # try to infer the correct QEMU
@@ -43,6 +41,22 @@ QEMU := $(shell if which qemu-system-x86_64 > /dev/null; \
 	echo "***" 1>&2; exit 1; fi)
 endif
 
+ifeq ($(OS),Windows_NT)
+uname := Win32
+else
+uname := $(shell uname)
+endif
+
+ifeq ($(uname), Linux)
+prefix :=
+else
+prefix := x86_64-elf-
+endif
+
+ld := $(prefix)ld
+objdump := $(prefix)objdump
+cc := $(prefix)gcc
+
 .PHONY: all clean run iso kernel build debug_asm
 
 all: $(kernel)
@@ -51,8 +65,7 @@ clean:
 	@rm -r build
 
 run: $(iso)
-	@$(QEMU) -cdrom $< $(qemu-opts) || [ $$? -eq 11 ]
-	# @$(QEMU) -no-reboot -parallel stdio -serial null -cdrom $<
+	$(QEMU) -cdrom $< $(qemu_opts) || [ $$? -eq 11 ]
 
 iso: $(iso)
 
@@ -64,17 +77,16 @@ debug_asm:
 $(iso): $(kernel) $(grub_cfg)
 	@mkdir -p build/isofiles/boot/grub
 	@cp $(kernel) build/isofiles/boot/kernel.bin
-	# @cp build/hdr build/isofiles/boot/kernel.bin
 	@cp $(grub_cfg) build/isofiles/boot/grub
 	@grub-mkrescue -o $(iso) build/isofiles 2> /dev/null
 	@rm -r build/isofiles
 
 $(kernel): kernel $(rust_os) $(assembly_object_files) $(linker_script)
-	@x86_64-elf-ld -n --gc-sections -T $(linker_script) -o $(kernel) \
+	@$(ld) -n --gc-sections -T $(linker_script) -o $(kernel) \
 		$(assembly_object_files) $(rust_os)
 
 kernel:
-	@RUST_TARGET_PATH=$(shell pwd) xargo build --target $(target) --features $(features)
+	@RUST_TARGET_PATH=$(shell pwd) CC=$(cc) xargo build --target $(target) --features "$(features)"
 
 # compile assembly files
 build/arch/$(arch)/%.o: $(boot_src)/%.asm
