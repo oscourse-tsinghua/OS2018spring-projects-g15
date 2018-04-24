@@ -3,10 +3,11 @@ mod structure;
 use self::structure::*;
 use consts::*;
 
-const PHY_MEMORY_LIMIT: u32 = 0;
-#[cfg(traget_arch="x86")]
+#[cfg(any(not(traget_arch = "x86"), not(traget_arch = "x86_64")))]
+const PHY_MEMORY_LIMIT: u32 = 0x80000000;
+#[cfg(traget_arch = "x86")]
 const PHY_MEMORY_LIMIT: u32 = 0x0e000000;
-#[cfg(traget_arch="x86_64")]
+#[cfg(traget_arch = "x86_64")]
 const PHY_MEMORY_LIMIT: u32 = 0x80000000;
 
 #[derive(Debug)]
