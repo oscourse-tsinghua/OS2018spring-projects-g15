@@ -1,4 +1,4 @@
-use super::address::PhysicalAddress;
+use memory::PhysicalAddress;
 
 pub const PAGE_SIZE: usize = 4096;
 
@@ -29,8 +29,11 @@ impl Frame {
 }
 
 pub trait FrameAllocator {
-    fn allocate_frame(&mut self) -> Option<Frame>;
-    fn deallocate_frame(&mut self, frame: Frame);
+    fn set_noncore(&mut self, noncore: bool);
+    fn used_frames(& self) -> usize;
+    fn free_frames(& self) -> usize;
+    fn allocate_frames(&mut self, count: usize) -> Option<Frame>;
+    fn deallocate_frames(&mut self, frame: Frame, count: usize);
 }
 
 pub struct FrameIter {

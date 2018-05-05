@@ -1,5 +1,5 @@
 use arch::driver::{acpi::ACPI_Result, apic::start_ap};
-use memory::{MemoryController, PhysicalAddress};
+use memory::PhysicalAddress;
 
 extern {
     fn entryother_start();  // physical addr of entryother

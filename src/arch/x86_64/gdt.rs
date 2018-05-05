@@ -5,7 +5,7 @@ use x86_64::{PrivilegeLevel, VirtualAddress};
 use spin::Once;
 
 use arch::paging::entry::EntryFlags;
-use memory::MemoryController;
+// use memory::MemoryController;
 
 use core::fmt;
 use core::fmt::Debug;
@@ -119,18 +119,20 @@ impl Descriptor {
     }
 }
 
-pub fn init(memory_controller: &mut MemoryController) {
+pub fn init() {
     use x86_64::structures::gdt::SegmentSelector;
     use x86_64::instructions::segmentation::set_cs;
     use x86_64::instructions::tables::load_tss;
 
-    let double_fault_stack = memory_controller.alloc_stack(1)
-        .expect("could not allocate double fault stack");
+    use alloc::boxed::Box;
+
+    let double_fault_stack_top = Box::into_raw(Box::new([0u8; 4096])) as usize + 4096;
+    debug!("Double fault stack top @ {:#x}", double_fault_stack_top);
 
     let tss = TSS.call_once(|| {
         let mut tss = TaskStateSegment::new();
-        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX] = VirtualAddress(
-            double_fault_stack.top());
+        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX] = 
+            VirtualAddress(double_fault_stack_top);
         tss
     });
 

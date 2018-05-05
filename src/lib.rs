@@ -7,7 +7,8 @@
 #![feature(global_allocator)]
 #![feature(abi_x86_interrupt)]
 #![feature(iterator_step_by)]
-// #![feature(core_intrinsics)]
+#![feature(core_intrinsics)]
+#![feature(asm)]
 #![feature(unboxed_closures)]
 #![feature(match_default_bindings)]
 #![no_std]
@@ -16,11 +17,15 @@
 mod test_utils;
 #[macro_use]
 mod io;
+#[macro_use]
+mod macros;
 mod memory;
-// mod interrupts;
+// mod modules;
 mod lang;
 mod utils;
 mod consts;
+mod time;
+pub mod allocator;
 
 #[macro_use]
 extern crate bitflags;
@@ -40,6 +45,8 @@ extern crate linked_list_allocator;
 extern crate bit_field;
 
 extern crate syscall;
+extern crate raw_cpuid;
+extern crate slab_allocator;
 
 #[allow(dead_code)]
 #[cfg(target_arch = "x86_64")]
@@ -48,17 +55,8 @@ mod arch;
 
 use lang::{print_name, eh_personality, panic_fmt};
 
-// pub const HEAP_START: usize = 0o_000_001_000_000_0000;
-// pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
-// #[global_allocator]
-// use memory::heap_allocator::BumpAllocator;
-// static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START,
-//     HEAP_START + HEAP_SIZE);
-
-use linked_list_allocator::LockedHeap;
 #[global_allocator]
-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
-
+static ALLOCATOR: allocator::Allocator = allocator::Allocator;
 
 #[no_mangle]
 pub extern fn rust_main(multiboot_information_address: usize) {
@@ -69,29 +67,31 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
 
-    println!("MP = {:?}", arch::driver::mp::find_mp());
-    println!("RDSP = {:?}", arch::driver::acpi::find_rsdp());
+    // println!("MP = {:?}", arch::driver::mp::find_mp());
+    // println!("RDSP = {:?}", arch::driver::acpi::find_rsdp());
 
     // set up guard page and map the heap pages
-    let mut memory_controller = memory::init(boot_info);
-
-    // initialize the heap allocator
-    unsafe {
-        // HEAP_ALLOCATOR.lock().init(HEAP_START, HEAP_START + HEAP_SIZE);
-        use consts::{KERNEL_HEAP_OFFSET, KERNEL_HEAP_SIZE};
-        HEAP_ALLOCATOR.lock().init(KERNEL_HEAP_OFFSET, KERNEL_HEAP_SIZE);
+    let mut active_table = memory::init(&boot_info);
+    unsafe{
+        allocator::init(&mut active_table);
     }
 
     // initialize our IDT and GDT
-    arch::idt::init(&mut memory_controller);
+    arch::idt::init();
 
     test!(global_allocator);
     test!(alloc_sth);
-    test!(find_mp);
+    // test!(find_mp);
     // test!(guard_page);
 
-    let acpi = arch::driver::init(
-        |addr: usize| memory_controller.map_page_identity(addr));
+    // arch::driver::init(&mut active_table,
+    //     |addr: usize| map_page_identity(addr));
+    unsafe{
+        use arch::driver::{pic, apic, acpi};
+        pic::init();
+        apic::local_apic::init(&mut active_table);
+        acpi::init(&mut active_table);
+    }
     // memory_controller.print_page_table();
     // arch::smp::start_other_cores(&acpi, &mut memory_controller);
 
@@ -111,7 +111,7 @@ pub extern "C" fn other_main() -> ! {
     arch::driver::apic::other_init();
     let cpu_id = arch::driver::apic::lapic_id();
     println!("Hello world! from CPU {}!", arch::driver::apic::lapic_id());
-    unsafe{ arch::smp::notify_started(cpu_id); }
+    // unsafe{ arch::smp::notify_started(cpu_id); }
     unsafe{ let a = *(0xdeadbeaf as *const u8); } // Page fault
     loop {}
 }
@@ -125,16 +125,18 @@ mod test {
         println!("extern fn foo(2): {}", unsafe{foo(2)});
     }
     pub fn global_allocator() {
+        debug!("in global allocator");
         for i in 0..10000 {
             format!("Some String");
         }
+        debug!("fin global alloc test");
     }
 
-    pub fn find_mp() {
-        use arch;
-        let mp = arch::driver::mp::find_mp();
-        assert!(mp.is_some());
-    }
+    // pub fn find_mp() {
+    //     use arch;
+    //     let mp = arch::driver::mp::find_mp();
+    //     assert!(mp.is_some());
+    // }
 
     pub fn alloc_sth() {
         use alloc::boxed::Box;

@@ -1,9 +1,12 @@
 use core::intrinsics::{volatile_load, volatile_store};
 use x86_64::instructions::{rdmsr, wrmsr};
+use x86_64::registers::msr::*;
+use raw_cpuid::CpuId;
 
 use memory::Frame;
-use memory::paging::{ActivePageTable, PhysicalAddress, Page, VirtualAddress};
-use memory::paging::entry::EntryFlags;
+use arch::paging::{ActivePageTable, Page};
+use arch::paging::entry::EntryFlags;
+use consts::*;
 
 pub static mut LOCAL_APIC: LocalApic = LocalApic {
     address: 0,
@@ -26,14 +29,14 @@ pub struct LocalApic {
 
 impl LocalApic {
     unsafe fn init(&mut self, active_table: &mut ActivePageTable) {
-        self.address = (rdmsr(IA32_APIC_BASE) as usize & 0xFFFF_0000) + ::KERNEL_OFFSET;
+        self.address = (rdmsr(IA32_APIC_BASE) as usize & 0xFFFF_0000) + KERNEL_OFFSET;
         self.x2 = CpuId::new().get_feature_info().unwrap().has_x2apic();
 
         if ! self.x2 {
-            let page = Page::containing_address(VirtualAddress::new(self.address));
-            let frame = Frame::containing_address(PhysicalAddress::new(self.address - ::KERNEL_OFFSET));
+            let page = Page::containing_address(self.address as usize);
+            let frame = Frame::containing_address((self.address - KERNEL_OFFSET) as usize);
             let result = active_table.map_to(page, frame, EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::NO_EXECUTE);
-            result.flush(active_table);
+            result.flush(active_table);            
         }
 
         self.init_ap();

@@ -7,7 +7,9 @@ pub mod pic;
 pub mod keyboard;
 pub mod pit;
 
-pub fn init<F>(mut page_map: F) -> acpi::ACPI_Result
+use memory::ActivePageTable;
+
+pub fn init<F>(active_table: &mut ActivePageTable, mut page_map: F)
     where F: FnMut(usize) {
 
     assert_has_not_been_called!();
@@ -19,21 +21,24 @@ pub fn init<F>(mut page_map: F) -> acpi::ACPI_Result
     }
     page_map(0x7fe1000); // RSDT
 
-    let acpi = acpi::init().expect("Failed to init ACPI");
-    debug!("{:?}", acpi);
-
-    if cfg!(feature = "use_apic") {
-        pic::disable();
-
-        page_map(acpi.lapic_addr as usize);  // LAPIC
-        page_map(0xFEC00000);  // IOAPIC
-
-        apic::init(acpi.lapic_addr, acpi.ioapic_id);
-    } else {
+    unsafe{
         pic::init();
+        apic::local_apic::init(active_table);
+        debug!("fin apic init");
+        acpi::init(active_table);
     }
+
+    // if cfg!(feature = "use_apic") {
+    //     pic::disable();
+
+    //     page_map(acpi.lapic_addr as usize);  // LAPIC
+    //     page_map(0xFEC00000);  // IOAPIC
+
+    //     apic::init(acpi.lapic_addr, acpi.ioapic_id);
+    // } else {
+    //     pic::init();
+    // }
     pit::init();
     serial::init();
     keyboard::init();
-    acpi
 }

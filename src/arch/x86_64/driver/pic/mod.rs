@@ -41,9 +41,7 @@ pub fn init() {
 
     // Ack remaining interrupts
     master.ack();
-    slave.ack();
-
-    println!("pic: init end");    
+    slave.ack(); 
 }
 
 pub fn enable_irq(irq: u8)

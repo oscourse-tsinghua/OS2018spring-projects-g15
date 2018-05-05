@@ -2,6 +2,8 @@ pub use self::entry::*;
 pub use self::mapper::Mapper;
 pub use self::temporary_page::TemporaryPage;
 
+// use x86_64::VirtualAddress;
+// use x86_64::instructions::tlb;
 use multiboot2::BootInformation;
 use core::ptr::Unique;
 use core::ops::{Deref, DerefMut, Add};
@@ -10,12 +12,12 @@ use core::fmt::Debug;
 
 use self::table::{Table, Level4};
 use self::entry::EntryFlags;
-use memory::{PAGE_SIZE, Frame, FrameAllocator, VirtualAddress};
+pub use memory::{PAGE_SIZE, Frame, FrameAllocator, VirtualAddress};
 
 pub mod entry;
 mod table;
 mod temporary_page;
-mod mapper;
+pub mod mapper;
 
 const ENTRY_COUNT: usize = 512;
 
@@ -155,6 +157,22 @@ impl ActivePageTable {
         }
         old_table
     }
+
+    pub fn flush(&mut self, page: Page) {
+        use x86_64::instructions::tlb;
+        use x86_64::VirtualAddress;
+        unsafe { tlb::flush(VirtualAddress(page.start_address())); }
+    }
+    
+    pub fn flush_all(&mut self) {
+        use x86_64::instructions::tlb;        
+        unsafe { tlb::flush_all(); }
+    }
+
+    pub unsafe fn address(&self) -> usize {
+        use x86_64::registers::control_regs;
+        control_regs::cr3().0 as usize
+    }
 }
 
 pub struct InactivePageTable {
@@ -196,13 +214,13 @@ pub fn test_paging<A>(allocator: &mut A)
     // test it
     let addr = 42 * 512 * 512 * 4096; // 42th P3 entry
     let page = Page::containing_address(addr);
-    let frame = allocator.allocate_frame().expect("no more frames");
+    let frame = allocator.allocate_frames(1).expect("no more frames");
     println!("None = {:?}, map to {:?}",
             page_table.translate(addr),
             frame);
-    page_table.map_to(page, frame, EntryFlags::empty(), allocator);
+    let result = page_table.map_to(page, frame, EntryFlags::empty());
     println!("Some = {:?}", page_table.translate(addr));
-    println!("next free frame: {:?}", allocator.allocate_frame());
+    println!("next free frame: {:?}", allocator.allocate_frames(1));
 
     // page_table.unmap(Page::containing_address(addr), allocator);
     // println!("None = {:?}", page_table.translate(addr));

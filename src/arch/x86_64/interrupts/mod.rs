@@ -5,6 +5,7 @@ pub mod irq;
 
 #[inline(always)]
 pub unsafe fn enable() {
+    debug!("in interrupts enable");  
     x86_64::instructions::interrupts::enable();
 }
 

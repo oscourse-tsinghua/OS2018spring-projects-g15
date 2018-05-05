@@ -3,6 +3,7 @@ pub use self::lapic::{ack, start_ap, lapic_id};
 
 mod lapic;
 mod ioapic;
+pub mod local_apic;
 
 pub fn init(lapic_addr: *const (), ioapic_id: u8) {
 	assert_has_not_been_called!("apic::init must be called only once");
