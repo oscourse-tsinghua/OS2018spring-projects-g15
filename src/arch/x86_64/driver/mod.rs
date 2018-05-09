@@ -24,7 +24,6 @@ pub fn init<F>(active_table: &mut ActivePageTable, mut page_map: F)
     unsafe{
         pic::init();
         apic::local_apic::init(active_table);
-        debug!("fin apic init");
         acpi::init(active_table);
     }
 

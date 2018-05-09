@@ -4,8 +4,7 @@ use arch::driver::{apic::IOAPIC, pic};
 pub mod irq;
 
 #[inline(always)]
-pub unsafe fn enable() {
-    debug!("in interrupts enable");  
+pub unsafe fn enable() { 
     x86_64::instructions::interrupts::enable();
 }
 

@@ -7,7 +7,7 @@ use super::interrupts::irq::*;
 use self::gdt::DOUBLE_FAULT_IST_INDEX;
 
 lazy_static! {
-    static ref IDT: Idt = {
+    pub static ref IDT: Idt = {
         let mut idt = Idt::new();
         idt.breakpoint.set_handler_fn(breakpoint_handler);
         idt.page_fault.set_handler_fn(page_fault_handler);

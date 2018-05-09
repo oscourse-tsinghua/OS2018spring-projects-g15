@@ -19,28 +19,9 @@ pub mod bump_allocator;
 mod address;
 mod frame;
 
-
-// /// The current memory map. It's size is maxed out to 512 entries, due to it being
-// /// from 0x500 to 0x5000 (800 is the absolute total)
-// static mut MEMORY_MAP: [MemoryArea; 512] = [MemoryArea { base_addr: 0, length: 0, _type: 0, acpi: 0 }; 512];
-
-// /// Memory does not exist
-// pub const MEMORY_AREA_NULL: u32 = 0;
-
-// /// Memory is free to use
-// pub const MEMORY_AREA_FREE: u32 = 1;
-
-// /// Memory is reserved
-// pub const MEMORY_AREA_RESERVED: u32 = 2;
-
-// /// Memory is used by ACPI, and can be reclaimed
-// pub const MEMORY_AREA_ACPI: u32 = 3;
-
-
 pub static ALLOCATOR: Mutex<Option<RecycleAllocator<BumpAllocator>>> = Mutex::new(None);
 
 pub fn init(boot_info: &BootInformation) -> ActivePageTable {
-// pub fn init(boot_info: &BootInformation) -> MemoryController {
     assert_has_not_been_called!("memory::init must be called only once");
 
     let memory_map_tag = boot_info.memory_map_tag().expect(
@@ -64,7 +45,6 @@ pub fn init(boot_info: &BootInformation) -> ActivePageTable {
              boot_info_end);
     println!("memory area:");
     for area in memory_map_tag.memory_areas() {
-        // println!("  addr: {:#x}, size: {:#x}", area.base_addr, area.length);
         println!("{:?}", area);
     }    
 
@@ -187,8 +167,6 @@ pub fn deallocate_frames(frame: Frame, count: usize) {
 
 pub fn remap_the_kernel(boot_info: &BootInformation) -> ActivePageTable
 {
-    debug!("in remap the kernel");
-
     let mut temporary_page = TemporaryPage::new(Page::containing_address(0xcafebabe));
 
     let mut active_table = unsafe { ActivePageTable::new() };
@@ -248,84 +226,5 @@ pub fn remap_the_kernel(boot_info: &BootInformation) -> ActivePageTable
     let old_table = active_table.switch(new_table);
     println!("NEW TABLE!!!");
 
-    // turn the stack bottom into a guard page
-    extern { fn stack_bottom(); }
-    let stack_bottom = PhysicalAddress(stack_bottom as u64).to_kernel_virtual();
-    let stack_bottom_page = Page::containing_address(stack_bottom);
-    let result = active_table.unmap(stack_bottom_page);
-    result.flush(&mut active_table);
-    println!("guard page at {:#x}", stack_bottom_page.start_address());
-
     active_table
 }
-
-// pub struct MemoryController {
-//     pub active_table: paging::ActivePageTable,
-//     frame_allocator: AreaFrameAllocator,
-//     stack_allocator: stack_allocator::StackAllocator,
-// }
-
-// impl MemoryController {
-//     pub fn alloc_stack(&mut self, size_in_pages: usize) -> Option<Stack> {
-//         let &mut MemoryController { ref mut active_table,
-//                                     ref mut frame_allocator,
-//                                     ref mut stack_allocator } = self;
-//         stack_allocator.alloc_stack(active_table, frame_allocator,
-//                                     size_in_pages)
-//     }
-    
-//     pub fn map_page_identity(&mut self, addr: usize) {
-//         let frame = Frame::containing_address(addr);
-//         let flags = EntryFlags::WRITABLE;
-//         self.active_table.identity_map(frame, flags, &mut self.frame_allocator);
-//     }
-
-//     pub fn map_page_p2v(&mut self, addr: PhysicalAddress) {
-//         let page = Page::containing_address(addr.to_kernel_virtual());
-//         let frame = Frame::containing_address(addr.get());
-//         let flags = EntryFlags::WRITABLE;
-//         self.active_table.map_to(page, frame, flags, &mut self.frame_allocator);
-//     }
-//     pub fn print_page_table(&self) {
-//         debug!("{:?}", self.active_table);
-//     }
-// }
-
-// /// A memory map area
-// #[derive(Copy, Clone, Debug, Default)]
-// #[repr(packed)]
-// pub struct MemoryArea {
-//     pub base_addr: u64,
-//     pub length: u64,
-//     pub _type: u32,
-//     pub acpi: u32
-// }
-
-// #[derive(Clone, Debug)]
-// pub struct MemoryAreaIter {
-//     _type: u32,
-//     i: usize
-// }
-
-// impl MemoryAreaIter {
-//     fn new(_type: u32) -> Self {
-//         MemoryAreaIter {
-//             _type: _type,
-//             i: 0
-//         }
-//     }
-// }
-
-// impl Iterator for MemoryAreaIter {
-//     type Item = &'static MemoryArea;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         while self.i < unsafe { MEMORY_MAP.len() } {
-//             let entry = unsafe { &MEMORY_MAP[self.i] };
-//             self.i += 1;
-//             if entry._type == self._type {
-//                 return Some(entry);
-//             }
-//         }
-//         None
-//     }
-// }

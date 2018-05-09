@@ -49,7 +49,8 @@ impl Madt {
                 println!("    XAPIC {}: {:>08X}", me, local_apic.address);
             }
 
-            if cfg!(feature = "multi_core") {
+            // if cfg!(feature = "multi_core") {
+            {
                 let trampoline_frame = Frame::containing_address(TRAMPOLINE as usize);
                 let trampoline_page = Page::containing_address(TRAMPOLINE as usize);
 
@@ -141,6 +142,8 @@ impl Madt {
                 let (result, _frame) = active_table.unmap_return(trampoline_page, false);
                 result.flush(active_table);
             }
+            use arch::driver::apic;
+            apic::init(local_apic.address as *const (), local_apic.id() as u8);
         }
     }
 

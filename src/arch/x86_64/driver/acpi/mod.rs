@@ -10,8 +10,6 @@ use syscall::io::{Io, Pio};
 
 use spin::RwLock;
 
-// use stop::kstop;
-
 use memory::Frame;
 use arch::paging::{ActivePageTable, Page};
 use arch::paging::entry::EntryFlags;
@@ -30,7 +28,7 @@ use self::aml::{parse_aml_table, AmlError, AmlValue};
 
 pub mod hpet;
 mod dmar;
-mod fadt;
+pub mod fadt;
 mod madt;
 mod rsdt;
 mod sdt;
@@ -43,47 +41,6 @@ use consts::*;
 
 const TRAMPOLINE: usize = 0x7E00;
 const AP_STARTUP: usize = TRAMPOLINE + 512;
-
-#[derive(Debug)]
-pub struct ACPI_Result {
-    pub cpu_num: u8,
-    pub cpu_acpi_ids: [u8; MAX_CPU_NUM],
-    pub ioapic_id: u8,
-    pub lapic_addr: *const (),
-}
-
-#[derive(Debug)]
-pub enum ACPI_Error {
-    NotMapped,
-    IOACPI_NotFound,
-}
-
-fn config_SMP(madt: & Madt) -> Result<ACPI_Result, ACPI_Error> {
-    let lapic_addr = madt.local_address as *const ();
-
-    let mut cpu_num = 0u8;
-    let mut cpu_acpi_ids: [u8; MAX_CPU_NUM] = [0; MAX_CPU_NUM];
-    let mut ioapic_id: Option<u8> = None;
-    for entry in madt.iter() {
-        println!("{:?}", entry);
-        match &entry {
-            &MadtEntry::LocalApic(ref lapic) => {
-                cpu_acpi_ids[cpu_num as usize] = lapic.id;
-                cpu_num += 1;
-            },
-            &MadtEntry::IoApic(ref ioapic) => {
-                ioapic_id = Some(ioapic.id);
-            },
-            _ => {},
-        }
-    }
-
-    if ioapic_id.is_none() {
-        return Err(ACPI_Error::IOACPI_NotFound);
-    }
-    let ioapic_id = ioapic_id.unwrap();
-    Ok(ACPI_Result{ cpu_num, cpu_acpi_ids, ioapic_id, lapic_addr })
-}
 
 fn get_sdt(sdt_address: usize, active_table: &mut ActivePageTable) -> &'static Sdt {
     {
@@ -122,11 +79,9 @@ fn init_aml_table(sdt: &'static Sdt) {
         Err(AmlError::AmlDeferredLoad) => println!(": Deferred load reached top level"),
         Err(AmlError::AmlFatalError(_, _, _)) => {
             debug!(": Fatal error occurred");
-            // unsafe { kstop(); }
         },
         Err(AmlError::AmlHardFatal) => {
             debug!(": Fatal error occurred");
-            // unsafe { kstop(); }
         }
     }
 }
@@ -142,20 +97,17 @@ fn init_namespace() {
         print!("  DSDT");
         load_table(get_sdt_signature(dsdt[0]));
         // init_aml_table(dsdt[0]);
-        debug!("after aml");
     } else {
         println!("Unable to find DSDT");
         return;
     };
 
     let ssdts = find_sdt("SSDT");
-    debug!("find ssdts");
     for ssdt in ssdts {
         print!("  SSDT");
         load_table(get_sdt_signature(ssdt));
         // init_aml_table(ssdt);
     }
-    debug!("finish init namesp")
 }
 
 /// Parse the ACPI tables to gather CPU, interrupt, and timer information
@@ -204,10 +156,8 @@ pub unsafe fn init(active_table: &mut ActivePageTable) {
         Dmar::init(active_table);
         Hpet::init(active_table);
         init_namespace();
-        // config_SMP(&madt.expect("ACPI: madt not found!"))
     } else {
         println!("NO RSDP FOUND");
-        // Err(ACPI_Error::NotMapped)
     }
 }
 
@@ -244,7 +194,6 @@ pub static SDT_POINTERS: RwLock<Option<BTreeMap<SdtSignature, &'static Sdt>>> = 
 pub static SDT_ORDER: RwLock<Option<Vec<SdtSignature>>> = RwLock::new(None);
 
 pub fn find_sdt(name: &str) -> Vec<&'static Sdt> {
-    debug!("find name: {}", name);
     let mut sdts: Vec<&'static Sdt> = vec!();
 
     if let Some(ref ptrs) = *(SDT_POINTERS.read()) {
