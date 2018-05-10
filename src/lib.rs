@@ -20,7 +20,7 @@ mod io;
 #[macro_use]
 mod macros;
 mod memory;
-// mod modules;
+mod modules;
 mod lang;
 mod utils;
 mod consts;
@@ -60,15 +60,10 @@ static ALLOCATOR: allocator::Allocator = allocator::Allocator;
 
 #[no_mangle]
 pub extern fn rust_main(multiboot_information_address: usize) {
-    // ATTENTION: we have a very small stack and no guard page
-
     arch::cpu::init();
     print_name();
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
-
-    // println!("MP = {:?}", arch::driver::mp::find_mp());
-    // println!("RDSP = {:?}", arch::driver::acpi::find_rsdp());
 
     // set up guard page and map the heap pages
     let mut active_table = memory::init(&boot_info);
@@ -78,21 +73,33 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     // initialize our IDT and GDT
     arch::idt::init();
+    unsafe{
+        use arch::driver::{pic, apic, acpi, pit, serial, keyboard};
+        use memory::{Frame};
+        use arch::paging::entry::EntryFlags;
+        pic::init();
+        let result = active_table.identity_map(Frame::containing_address(0xFEC00000), EntryFlags::WRITABLE);
+        result.flush(&mut active_table);
+        apic::local_apic::init(&mut active_table);
+        acpi::init(&mut active_table);
+        pit::init();
+        serial::init();
+        keyboard::init();
+    }
+    modules::ps2::init();
 
     test!(global_allocator);
     test!(alloc_sth);
+    if cfg!(feature = "use_apic") {
+        debug!("use apic!");
+    } else {
+        debug!("PIC only!");
+    }
     // test!(find_mp);
     // test!(guard_page);
 
     // arch::driver::init(&mut active_table,
     //     |addr: usize| map_page_identity(addr));
-    unsafe{
-        use arch::driver::{pic, apic, acpi};
-        pic::init();
-        apic::local_apic::init(&mut active_table);
-        acpi::init(&mut active_table);
-    }
-    // memory_controller.print_page_table();
     // arch::smp::start_other_cores(&acpi, &mut memory_controller);
 
     unsafe{ arch::interrupts::enable(); }
@@ -101,19 +108,6 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     loop{}
     test_end!();
-}
-
-#[no_mangle]
-pub extern "C" fn other_main() -> ! {
-    arch::cpu::init();
-    // arch::idt::init(&mut memory_controller);
-    
-    arch::driver::apic::other_init();
-    let cpu_id = arch::driver::apic::lapic_id();
-    println!("Hello world! from CPU {}!", arch::driver::apic::lapic_id());
-    // unsafe{ arch::smp::notify_started(cpu_id); }
-    unsafe{ let a = *(0xdeadbeaf as *const u8); } // Page fault
-    loop {}
 }
 
 mod test {
@@ -131,12 +125,6 @@ mod test {
         }
         debug!("fin global alloc test");
     }
-
-    // pub fn find_mp() {
-    //     use arch;
-    //     let mp = arch::driver::mp::find_mp();
-    //     assert!(mp.is_some());
-    // }
 
     pub fn alloc_sth() {
         use alloc::boxed::Box;

@@ -101,6 +101,7 @@ pub mod irq {
 	pub const IRQ_KBD      : u8 =  1;
 	pub const IRQ_COM2     : u8 =  3;
 	pub const IRQ_COM1     : u8 =  4;
+    pub const IRQ_MOUSE    : u8 = 12;
 	pub const IRQ_IDE      : u8 = 14;
 	pub const IRQ_ERROR    : u8 = 19;
 	pub const IRQ_SPURIOUS : u8 = 31;
