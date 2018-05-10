@@ -11,6 +11,7 @@
 #![feature(asm)]
 #![feature(unboxed_closures)]
 #![feature(match_default_bindings)]
+#![feature(naked_function)]
 #![no_std]
 
 #[macro_use]    // test!
@@ -35,12 +36,13 @@ extern crate alloc;
 extern crate once;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate x86_64;
 
 extern crate rlibc;
 extern crate volatile;
 extern crate spin;
 extern crate multiboot2;
-extern crate x86_64;
 extern crate linked_list_allocator;
 extern crate bit_field;
 
