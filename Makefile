@@ -15,7 +15,7 @@ assembly_object_files := $(patsubst src/arch/$(arch)/%.asm, \
 # try to infer the correct QEMU
 ifndef QEMU
 QEMU := $(shell if which qemu-system-x86_64 > /dev/null; \
-	then echo 'qemu-system-x86_64'; exit; \
+	then echo 'qemu-system-x86_64 -hda linuxppc.qcow2'; exit; \
 	elif which x86_64-elf-qemu > /dev/null; \
 	then echo 'x86_64-elf-qemu'; exit; \
 	elif which qemu > /dev/null; \

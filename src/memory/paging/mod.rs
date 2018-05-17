@@ -10,7 +10,7 @@ use memory::{PAGE_SIZE, Frame, FrameAllocator};
 mod entry;
 mod table;
 mod temporary_page;
-mod mapper;
+pub mod mapper;
 
 const ENTRY_COUNT: usize = 512;
 
