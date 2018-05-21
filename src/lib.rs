@@ -116,6 +116,9 @@ pub mod config;
 //pub mod irqs;
 pub mod ata;
 
+#[macro_use]
+pub mod process;
+
 extern crate bit_field;
 
 extern crate syscall;
