@@ -1,16 +1,16 @@
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::{PrivilegeLevel, VirtualAddress};
-
 use spin::Once;
 
-use arch::paging::entry::EntryFlags;
-// use memory::MemoryController;
+use alloc::boxed::Box;
 
+use core::ptr::Unique;
 use core::fmt;
 use core::fmt::Debug;
 
-static TSS: Once<TaskStateSegment> = Once::new();
+// static TSS: Once<TaskStateSegment> = Once::new();
+static TSS: Once<Box<TaskStateSegment>> = Once::new();
 static GDT: Once<Gdt> = Once::new();
 
 pub const DOUBLE_FAULT_IST_INDEX: usize = 0;
@@ -21,6 +21,25 @@ const KCODE: Descriptor = Descriptor::UserSegment(0x0020980000000000);  // EXECU
 const UCODE: Descriptor = Descriptor::UserSegment(0x0020F80000000000);  // EXECUTABLE | USER_SEGMENT | USER_MODE | PRESENT | LONG_MODE
 const KDATA: Descriptor = Descriptor::UserSegment(0x0000920000000000);  // DATA_WRITABLE | USER_SEGMENT | PRESENT
 const UDATA: Descriptor = Descriptor::UserSegment(0x0000F20000000000);  // DATA_WRITABLE | USER_SEGMENT | USER_MODE | PRESENT
+
+pub const KCODE_SELECTOR: SegmentSelector = SegmentSelector::new(1, PrivilegeLevel::Ring0);
+pub const UCODE_SELECTOR: SegmentSelector = SegmentSelector::new(2, PrivilegeLevel::Ring3);
+pub const KDATA_SELECTOR: SegmentSelector = SegmentSelector::new(3, PrivilegeLevel::Ring0);
+pub const UDATA_SELECTOR: SegmentSelector = SegmentSelector::new(4, PrivilegeLevel::Ring3);
+pub const TSS_SELECTOR: SegmentSelector = SegmentSelector::new(5, PrivilegeLevel::Ring0);
+
+static mut TSS_PTR: Unique<TaskStateSegment> = unsafe{ Unique::new_unchecked(0 as *mut _) };
+
+/// 设置从Ring3跳到Ring0时，自动切换栈的地址
+///
+/// 每次进入用户态前，都要调用此函数，才能保证正确返回内核态
+pub fn set_ring0_rsp(rsp: usize) {
+    debug!("gdt.set_ring0_rsp: {:#x}", rsp);
+    unsafe {
+        TSS_PTR.as_mut().privilege_stack_table[0] = VirtualAddress(rsp);
+//        debug!("TSS:\n{:?}", TSS_PTR.as_ref());
+    }
+}
 
 pub struct Gdt {
     table: [u64; 8],
@@ -128,13 +147,15 @@ pub fn init() {
 
     let double_fault_stack_top = Box::into_raw(Box::new([0u8; 4096])) as usize + 4096;
     debug!("Double fault stack top @ {:#x}", double_fault_stack_top);
-
-    let tss = TSS.call_once(|| {
+    
+    let tss = Box::new({
         let mut tss = TaskStateSegment::new();
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX] = 
             VirtualAddress(double_fault_stack_top);
         tss
     });
+    unsafe{ TSS_PTR = Unique::new_unchecked(Box::into_raw(tss)); }
+    let tss = unsafe{ TSS_PTR.as_ref() };
 
     let mut code_selector = SegmentSelector(0);
     let mut tss_selector = SegmentSelector(0);

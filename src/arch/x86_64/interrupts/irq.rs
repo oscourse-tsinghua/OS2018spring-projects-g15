@@ -1,33 +1,29 @@
-use x86_64::structures::idt::*;
-
-pub extern "x86-interrupt" fn breakpoint_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
-    println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+fn breakpoint() {
+    debug!("\nEXCEPTION: Breakpoint");
 }
 
-pub extern "x86-interrupt" fn double_fault_handler(
-    stack_frame: &mut ExceptionStackFrame, error_code: u64)
-{
-    println!("\nEXCEPTION: DOUBLE FAULT\n{:#?}\nErrorCode: {:#x}", stack_frame, error_code);
+fn double_fault() {
+    debug!("\nEXCEPTION: Double Fault");
     loop {}
 }
 
-pub extern "x86-interrupt" fn page_fault_handler(
-    stack_frame: &mut ExceptionStackFrame, error_code: PageFaultErrorCode)
-{
+fn page_fault(tf: &mut TrapFrame) {
     use x86_64::registers::control_regs::cr2;
-    println!("\nEXCEPTION: PAGE FAULT\n{:#?}\nErrorCode: {:#?}\nAddress: {:#x}",
-             stack_frame, error_code, cr2());
+    let addr = cr2().0;
+    debug!("\nEXCEPTION: Page Fault @ {:#x}, code: {:#x}", addr, tf.error_code);
+
     loop {}
 }
 
-pub extern "x86-interrupt" fn general_protection_fault_handler(
-    stack_frame: &mut ExceptionStackFrame, error_code: u64)
-{
-    println!("\nEXCEPTION: General Protection Fault\n{:#?}\nErrorCode: {:#x}", stack_frame, error_code);
+fn general_protection_fault() {
+    debug!("\nEXCEPTION: General Protection Fault");
+    loop {}
 }
 
+fn invalid_opcode() {
+    debug!("\nEXCEPTION: Invalid Opcode");
+    loop {}
+}
 
 #[cfg(feature = "use_apic")]
 use arch::driver::apic::ack;
@@ -36,67 +32,114 @@ use arch::driver::pic::ack;
 
 use consts::irq::*;
 
-pub extern "x86-interrupt" fn keyboard_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
+fn keyboard() {
     use arch::driver::keyboard;
-    println!("\nInterupt: Keyboard");
+    debug!("\nInterupt: Keyboard");
     let c = keyboard::get();
-    println!("Key = '{}' {}", c as u8 as char, c);
-    ack(IRQ_KBD);
+    debug!("Key = '{}' {}", c as u8 as char, c);
 }
 
-pub extern "x86-interrupt" fn com1_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
+fn com1() {
     use arch::driver::serial::COM1;
-    println!("\nInterupt: COM1");
+    debug!("\nInterupt: COM1");
     COM1.lock().receive();
-    ack(IRQ_COM1);
 }
 
-pub extern "x86-interrupt" fn com2_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
+fn com2() {
     use arch::driver::serial::COM2;
-    println!("\nInterupt: COM2");
+    debug!("\nInterupt: COM2");
     COM2.lock().receive();
-    ack(IRQ_COM2);
 }
 
-use spin::Mutex;
-static TICK: Mutex<usize> = Mutex::new(0);
-
-pub extern "x86-interrupt" fn timer_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
-    let mut tick = TICK.lock();
-    *tick += 1;
-    let tick = *tick;
-    if tick % 100 == 0 {
-        println!("\nInterupt: Timer\ntick = {}", tick);
+fn timer(tf: &mut TrapFrame, rsp: &mut usize) {
+    static mut tick: usize = 0;
+    unsafe {
+        tick += 1;
+        if tick % 100 == 0 {
+            debug!("tick 100");
+        }
     }
-    ack(IRQ_TIMER);    
 }
 
-pub extern "x86-interrupt" fn to_user_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
-    println!("\nInterupt: To User");
-    stack_frame.code_segment = 16;
-    stack_frame.stack_segment = 32;
+fn to_user(tf: &mut TrapFrame) {
+    use arch::gdt;
+    debug!("\nInterupt: To User");
 }
 
-pub extern "x86-interrupt" fn to_kernel_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
-    println!("\nInterupt: To Kernel");
-    stack_frame.code_segment = 8;
-    stack_frame.stack_segment = 24;
+fn to_kernel(tf: &mut TrapFrame) {
+    use arch::gdt;
+    debug!("\nInterupt: To Kernel");
 }
 
-pub extern "x86-interrupt" fn syscall_handler(
-    stack_frame: &mut ExceptionStackFrame)
-{
-    println!("\nInterupt: Syscall");
+#[no_mangle]
+pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
+    let mut rsp = tf as *const _ as usize;
+
+    // Dispatch
+    match tf.trap_num as u8 {
+        T_BRKPT => breakpoint(),
+        T_DBLFLT => double_fault(),
+        T_PGFLT => page_fault(tf),
+        T_GPFLT => general_protection_fault(),
+        T_IRQ0...64 => {
+            let irq = tf.trap_num as u8 - T_IRQ0;
+            match irq {
+                IRQ_TIMER => timer(tf, &mut rsp),
+                IRQ_KBD => keyboard(),
+                IRQ_COM1 => com1(),
+                IRQ_COM2 => com2(),
+                _ => panic!("Invalid IRQ number."),
+            }
+            ack(irq);
+        }
+        T_SWITCH_TOK => to_kernel(tf),
+        T_SWITCH_TOU => to_user(tf),
+        // T_SYSCALL => syscall(tf, &mut rsp),
+        // 0x80 => syscall32(tf, &mut rsp),
+        _ => panic!("Unhandled interrupt {:x}", tf.trap_num),
+    }
+
+    // Set return rsp if to user
+    let tf = unsafe { &*(rsp as *const TrapFrame) };
+    set_return_rsp(tf);
+
+    rsp
+}
+
+fn set_return_rsp(tf: &TrapFrame) {
+    use core::mem::size_of;
+    use arch::gdt;
+    if tf.cs & 0x3 == 3 {
+        gdt::set_ring0_rsp(tf as *const _ as usize + size_of::<TrapFrame>());
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TrapFrame {
+    pub r15: usize,
+    pub r14: usize,
+    pub r13: usize,
+    pub r12: usize,
+    pub rbp: usize,
+    pub rbx: usize,
+
+    pub r11: usize,
+    pub r10: usize,
+    pub r9: usize,
+    pub r8: usize,
+    pub rsi: usize,
+    pub rdi: usize,
+    pub rdx: usize,
+    pub rcx: usize,
+    pub rax: usize,
+
+    pub trap_num: usize,
+    pub error_code: usize,
+
+    pub rip: usize,
+    pub cs: usize,
+    pub rflags: usize,
+
+    pub rsp: usize,
+    pub ss: usize,
 }

@@ -11,7 +11,8 @@
 #![feature(asm)]
 #![feature(unboxed_closures)]
 #![feature(match_default_bindings)]
-#![feature(naked_function)]
+#![feature(naked_functions)]
+#![feature(pointer_methods)]
 #![no_std]
 
 #[macro_use]    // test!
@@ -57,6 +58,8 @@ mod arch;
 
 use lang::{print_name, eh_personality, panic_fmt};
 
+pub use arch::interrupts::irq::rust_trap;
+
 #[global_allocator]
 static ALLOCATOR: allocator::Allocator = allocator::Allocator;
 
@@ -74,7 +77,9 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     }
 
     // initialize our IDT and GDT
+    arch::gdt::init();
     arch::idt::init();
+    
     unsafe{
         use arch::driver::{pic, apic, acpi, pit, serial, keyboard};
         use memory::{Frame};
@@ -92,18 +97,22 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     test!(global_allocator);
     test!(alloc_sth);
+    test!(guard_page);
     if cfg!(feature = "use_apic") {
-        debug!("use apic!");
+        debug!("APIC init");
     } else {
-        debug!("PIC only!");
+        debug!("PIC init");
     }
-    // test!(find_mp);
-    // test!(guard_page);
 
-    // arch::driver::init(&mut active_table,
-    //     |addr: usize| map_page_identity(addr));
-    // arch::smp::start_other_cores(&acpi, &mut memory_controller);
+    unsafe{ arch::interrupts::enable(); }
+    debug!("interrupt init");
 
+    unsafe{ arch::interrupts::disable(); }
+    use arch::syscall;
+    syscall::switch_to_user();
+    debug!("in user mode");
+    syscall::switch_to_kernel();
+    debug!("in kernel mode");
     unsafe{ arch::interrupts::enable(); }
 
     println!("It did not crash!");

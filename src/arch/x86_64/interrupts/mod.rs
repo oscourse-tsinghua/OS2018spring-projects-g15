@@ -3,8 +3,10 @@ use arch::driver::{apic::IOAPIC, pic};
 
 pub mod irq;
 
+pub use self::irq::TrapFrame;
+
 #[inline(always)]
-pub unsafe fn enable() { 
+pub unsafe fn enable() {
     x86_64::instructions::interrupts::enable();
 }
 
