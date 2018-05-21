@@ -1,3 +1,5 @@
+use super::trapframe::TrapFrame;
+
 fn breakpoint() {
     debug!("\nEXCEPTION: Breakpoint");
 }
@@ -59,16 +61,23 @@ fn timer(tf: &mut TrapFrame, rsp: &mut usize) {
             debug!("tick 100");
         }
     }
+    use process;
+    process::schedule(rsp);
 }
 
 fn to_user(tf: &mut TrapFrame) {
     use arch::gdt;
     debug!("\nInterupt: To User");
+    // tf.cs = gdt::UCODE_SELECTOR.0 as usize;
+    // tf.ss = gdt::UDATA_SELECTOR.0 as usize;
+    // tf.rflags |= 3 << 12;   // 设置EFLAG的I/O特权位，使得在用户态可使用in/out指令
 }
 
 fn to_kernel(tf: &mut TrapFrame) {
     use arch::gdt;
     debug!("\nInterupt: To Kernel");
+    // tf.cs = gdt::KCODE_SELECTOR.0 as usize;
+    // tf.ss = gdt::KDATA_SELECTOR.0 as usize;
 }
 
 #[no_mangle]
@@ -112,34 +121,4 @@ fn set_return_rsp(tf: &TrapFrame) {
     if tf.cs & 0x3 == 3 {
         gdt::set_ring0_rsp(tf as *const _ as usize + size_of::<TrapFrame>());
     }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct TrapFrame {
-    pub r15: usize,
-    pub r14: usize,
-    pub r13: usize,
-    pub r12: usize,
-    pub rbp: usize,
-    pub rbx: usize,
-
-    pub r11: usize,
-    pub r10: usize,
-    pub r9: usize,
-    pub r8: usize,
-    pub rsi: usize,
-    pub rdi: usize,
-    pub rdx: usize,
-    pub rcx: usize,
-    pub rax: usize,
-
-    pub trap_num: usize,
-    pub error_code: usize,
-
-    pub rip: usize,
-    pub cs: usize,
-    pub rflags: usize,
-
-    pub rsp: usize,
-    pub ss: usize,
 }

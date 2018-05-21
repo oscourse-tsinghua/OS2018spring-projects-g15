@@ -27,6 +27,7 @@ mod lang;
 mod utils;
 mod consts;
 mod time;
+mod process;
 pub mod allocator;
 
 #[macro_use]
@@ -104,8 +105,9 @@ pub extern fn rust_main(multiboot_information_address: usize) {
         debug!("PIC init");
     }
 
-    unsafe{ arch::interrupts::enable(); }
-    debug!("interrupt init");
+    process::init();
+    // unsafe{ arch::interrupts::enable(); }
+    // debug!("interrupt init");
 
     unsafe{ arch::interrupts::disable(); }
     use arch::syscall;
@@ -114,6 +116,7 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     syscall::switch_to_kernel();
     debug!("in kernel mode");
     unsafe{ arch::interrupts::enable(); }
+
 
     println!("It did not crash!");
 

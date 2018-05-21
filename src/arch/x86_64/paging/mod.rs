@@ -2,8 +2,6 @@ pub use self::entry::*;
 pub use self::mapper::Mapper;
 pub use self::temporary_page::TemporaryPage;
 
-// use x86_64::VirtualAddress;
-// use x86_64::instructions::tlb;
 use multiboot2::BootInformation;
 use core::ptr::Unique;
 use core::ops::{Deref, DerefMut, Add};

@@ -2,8 +2,9 @@ use x86_64;
 use arch::driver::{apic::IOAPIC, pic};
 
 pub mod irq;
+pub mod trapframe;
 
-pub use self::irq::TrapFrame;
+pub use self::trapframe::TrapFrame;
 
 #[inline(always)]
 pub unsafe fn enable() {

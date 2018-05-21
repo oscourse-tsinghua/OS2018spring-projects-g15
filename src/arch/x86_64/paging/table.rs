@@ -1,8 +1,8 @@
 use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
-use memory::FrameAllocator;
+// use memory::FrameAllocator;
 use arch::paging::entry::*;
-use arch::paging::entry::EntryFlags;
+// use arch::paging::entry::EntryFlags;
 use arch::paging::ENTRY_COUNT;
 
 pub struct Table<L: TableLevel> {
@@ -124,7 +124,7 @@ impl<L> Table<L> where L: HierarchicalLevel {
             
             use memory::allocate_frames;
             let frame = allocate_frames(1).expect("no frames available");
-            self.entries[index].set(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE);
+            self.entries[index].set(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
             self.next_table_mut(index).unwrap().zero();
         }
         self.next_table_mut(index).unwrap()
