@@ -19,7 +19,7 @@ pub static CPU_COUNT: AtomicUsize = ATOMIC_USIZE_INIT;
 pub static AP_READY: AtomicBool = ATOMIC_BOOL_INIT;
 
 /// The Multiple APIC Descriptor Table
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Madt {
     sdt: &'static Sdt,
     pub local_address: u32,
@@ -173,7 +173,7 @@ impl Madt {
 ///
 
 /// MADT Local APIC
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(packed)]
 pub struct MadtLocalApic {
     /// Processor ID
@@ -185,7 +185,7 @@ pub struct MadtLocalApic {
 }
 
 /// MADT I/O APIC
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(packed)]
 pub struct MadtIoApic {
     /// I/O APIC ID
@@ -199,7 +199,7 @@ pub struct MadtIoApic {
 }
 
 /// MADT Interrupt Source Override
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[repr(packed)]
 pub struct MadtIntSrcOverride {
     /// Bus Source
@@ -213,7 +213,7 @@ pub struct MadtIntSrcOverride {
 }
 
 /// MADT Entries
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum MadtEntry {
     LocalApic(&'static MadtLocalApic),
     InvalidLocalApic(usize),

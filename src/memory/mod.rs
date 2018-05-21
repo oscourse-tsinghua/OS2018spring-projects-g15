@@ -68,30 +68,6 @@ pub fn init(boot_info: &BootInformation) -> ActivePageTable {
     unsafe{ init_pat(); }
     let active_table = remap_the_kernel(boot_info);
 
-    // use self::paging::Page;
-    // use consts::{KERNEL_HEAP_OFFSET, KERNEL_HEAP_SIZE};
-
-    // let heap_start_page = Page::containing_address(KERNEL_HEAP_OFFSET);
-    // let heap_end_page = Page::containing_address(KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE-1);
-
-    // for page in Page::range_inclusive(heap_start_page, heap_end_page) {
-    //     let result = active_table.map(page, EntryFlags::WRITABLE);
-    //     result.flush(&mut active_table);
-    // }
-
-    // let stack_allocator = {
-    //     let stack_alloc_start = heap_end_page + 1;
-    //     let stack_alloc_end = stack_alloc_start + 100;
-    //     let stack_alloc_range = Page::range_inclusive(stack_alloc_start,
-    //                                                   stack_alloc_end);
-    //     stack_allocator::StackAllocator::new(stack_alloc_range)
-    // };
-    
-    // MemoryController {
-    //     active_table: active_table,
-    //     frame_allocator: frame_allocator,
-    //     stack_allocator: stack_allocator,
-    // }
     active_table
 }
 

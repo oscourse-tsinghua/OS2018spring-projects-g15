@@ -144,7 +144,6 @@ impl ActivePageTable {
     }
 
     pub fn switch(&mut self, new_table: InactivePageTable) -> InactivePageTable {
-        use x86_64::PhysicalAddress;
         use x86_64::registers::control_regs;
 
         let old_table = InactivePageTable {

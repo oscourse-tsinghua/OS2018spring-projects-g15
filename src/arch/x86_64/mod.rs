@@ -7,3 +7,5 @@ pub mod pti;
 
 pub mod gdt;
 pub mod idt;
+
+pub mod syscall;

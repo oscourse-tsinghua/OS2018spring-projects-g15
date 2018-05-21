@@ -1,4 +1,3 @@
-use spin::Mutex;
 use core::ptr::Unique;
 use volatile::Volatile;
 use x86_64::instructions::port::{outw, outb};
@@ -86,15 +85,5 @@ impl VgaBuffer {
             outw(0x3D4, 14u16);
             outb(0x3D5, (pos >> 8) as u8);
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn print_something() {
-        let vga = unsafe {&mut *VGA_BUFFER};
-        vga.clear();
-        vga.write(0, 0, ScreenChar::new('h', Color::LightGray, Color::Black));
     }
 }
