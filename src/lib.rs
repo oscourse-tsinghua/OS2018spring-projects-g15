@@ -1,11 +1,17 @@
 #![feature(lang_items)]
-#![feature(unique, const_unique_new)]
+#![feature(unique, const_unique_new, const_atomic_usize_new)]
 #![feature(const_fn)]
 #![feature(ptr_internals)]
 #![feature(alloc)]
 #![feature(allocator_api)]
 #![feature(global_allocator)]
-#![feature(const_atomic_usize_new)]
+#![feature(abi_x86_interrupt)]
+#![feature(iterator_step_by)]
+#![feature(core_intrinsics)]
+#![feature(asm)]
+#![feature(unboxed_closures)]
+#![feature(match_default_bindings)]
+#![feature(naked_function)]
 #![no_std]
 
 #![feature(core_intrinsics)]
@@ -15,12 +21,28 @@
 #![feature(get_type_id)]
 #![feature(iterator_step_by)]
 #![feature(optin_builtin_traits)]
+#![feature(try_trait)]
 
+//#[macro_use]
+//mod vga_buffer;
+
+#[macro_use]    // test!
+mod test_utils;
 #[macro_use]
-mod vga_buffer;
+mod io;
+#[macro_use]
+mod macros;
+//mod memory;
+#[macro_use]
+mod modules;
+mod lang;
+mod utils;
+mod consts;
+mod time;
+pub mod allocator;
 
-#[doc(hidden)]
-#[macro_use] pub mod macros;
+//#[doc(hidden)]
+//#[macro_use] pub mod macros;
 /*
 #[doc(hidden)]
 #[macro_use] pub mod logmacros;
@@ -46,6 +68,14 @@ pub mod prelude;
 //extern crate lib;
 #[macro_use]
 extern crate bitflags;
+#[macro_use]
+extern crate alloc;
+#[macro_use]
+extern crate once;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate x86_64;
 
 //#[macro_use(foo, bar)]
 //extern crate baz;
@@ -53,12 +83,11 @@ extern crate rlibc;
 extern crate volatile;
 extern crate spin;
 extern crate multiboot2;
-extern crate x86_64;
 extern crate linked_list_allocator;
+//#[macro_use]
+//extern crate alloc;
 #[macro_use]
-extern crate alloc;
-#[macro_use]
-extern crate once;
+//extern crate once;
 //extern crate async;
 //extern crate storage_ata;
 
@@ -87,69 +116,80 @@ pub mod config;
 //pub mod irqs;
 pub mod ata;
 
-pub const HEAP_START: usize = 0o_000_001_000_000_0000;
-pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
+extern crate bit_field;
 
-// use memory::heap_allocator::BumpAllocator;
-use linked_list_allocator::LockedHeap;
+extern crate syscall;
+extern crate raw_cpuid;
+extern crate slab_allocator;
+
+#[allow(dead_code)]
+#[cfg(target_arch = "x86_64")]
+#[path = "arch/x86_64/mod.rs"]
+mod arch;
+
+use lang::{print_name, eh_personality, panic_fmt};
+
 #[global_allocator]
-// static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START,
-//     HEAP_START + HEAP_SIZE);
-static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
-
+static ALLOCATOR: allocator::Allocator = allocator::Allocator;
 
 #[no_mangle]
 pub extern fn rust_main(multiboot_information_address: usize) {
-    // ATTENTION: we have a very small stack and no guard page
-
+    arch::cpu::init();
     print_name();
  //   type_name!(i8);
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
-    enable_nxe_bit();
-    enable_write_protect_bit();
-    
+
     // set up guard page and map the heap pages
-    memory::init(boot_info);
-
-    // initialize the heap allocator
-    unsafe {
-        HEAP_ALLOCATOR.lock().init(HEAP_START, HEAP_START + HEAP_SIZE);
+    let mut active_table = memory::init(&boot_info);
+    unsafe{
+        allocator::init(&mut active_table);
     }
 
-    use alloc::boxed::Box;
-    let mut heap_test = Box::new(42);
-    *heap_test -= 15;
-    let heap_test2 = Box::new("hello");
-    println!("{:?} {:?}", heap_test, heap_test2);
-
-    let mut vec_test = vec![1,2,3,4,5,6,7];
-    vec_test[3] = 42;
-    for i in &vec_test {
-        print!("{} ", i);
+    // initialize our IDT and GDT
+    arch::idt::init();
+    unsafe{
+        use arch::driver::{pic, apic, acpi, pit, serial, keyboard};
+        use memory::{Frame};
+        use arch::paging::entry::EntryFlags;
+        pic::init();
+        let result = active_table.identity_map(Frame::containing_address(0xFEC00000), EntryFlags::WRITABLE);
+        result.flush(&mut active_table);
+        apic::local_apic::init(&mut active_table);
+        acpi::init(&mut active_table);
+        pit::init();
+        serial::init();
+        keyboard::init();
     }
+    modules::ps2::init();
 
-    for i in 0..10000 {
-        format!("Some String");
+    test!(global_allocator);
+    test!(alloc_sth);
+    if cfg!(feature = "use_apic") {
+        debug!("use apic!");
+    } else {
+        debug!("PIC only!");
     }
-    // use memory::FrameAllocator;
-    // for i in 0.. {
-    //     use memory::FrameAllocator;
-    //     // println!("{:?}", frame_allocator.allocate_frame());
-    //     if let None = frame_allocator.allocate_frame() {
-    //         println!("allocated {} frames", i);
-    //         break;
-    //     }
-    // }
-    
+    // test!(find_mp);
+    // test!(guard_page);
+
+    // arch::driver::init(&mut active_table,
+    //     |addr: usize| map_page_identity(addr));
+    // arch::smp::start_other_cores(&acpi, &mut memory_controller);
+
+    unsafe{ arch::interrupts::enable(); }
+
     println!("It did not crash!");
 	ata_test();
+	println!("233");
     fsinit();
 
     loop{}
+    test_end!();
 }
 
 fn ata_test(){
 	//log_trace!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
+	println!("ata_test");
 	use alloc::string::String;
 	let mut dst: [u32;512]=[0;512];
 	let block_size = 128;
@@ -170,6 +210,7 @@ fn ata_test(){
 			let blocks = dst.len() / block_size;
 			
 			//write test
+			println!("write");
 			match sata.write(prio, blk_id, blocks, &dst)//.wait()
 			{
 				Ok(v) => v,
@@ -178,6 +219,10 @@ fn ata_test(){
 
 			//read test
 			// TODO: Async! (maybe return a composite read handle?)
+			for i in 0..dst.len(){
+				dst[i]=0 as u32;
+			}
+			println!("read");
 			let real_count = match sata.read(prio, blk_id, blocks, &mut dst)//.wait()
 				{
 				Ok(v) => v,
@@ -289,9 +334,6 @@ fn vfs_test()
 			let sz = h.read(0, &mut buf).unwrap();
 			//let sz = h.write(0, &mut buf).unwrap();
 			
-			for i in 0..buf.len() {
-			 	//println!("Contents: {}",buf[i]);
-			}
 
 			//log_debug!("- Contents: {:?}", ::kernel::lib::RawString(&buf[..sz]));
             //println!("debug: - Contents: {:?}", mylib::RawString(&buf[..sz]));
@@ -388,33 +430,46 @@ fn enable_write_protect_bit() {
     unsafe { cr0_write(cr0() | Cr0::WRITE_PROTECT) };
 }
 
-fn enable_nxe_bit() {
-    use x86_64::registers::msr::{IA32_EFER, rdmsr, wrmsr};
+mod test {
+    pub fn extern_func() {
+        extern {
+            fn foo(x: i32) -> i32;
+        }
 
-    let nxe_bit = 1 << 11;
-    unsafe {
-        let efer = rdmsr(IA32_EFER);
-        wrmsr(IA32_EFER, efer | nxe_bit);
+        println!("extern fn foo(2): {}", unsafe{foo(2)});
     }
-}
+    pub fn global_allocator() {
+        debug!("in global allocator");
+        for i in 0..10000 {
+            format!("Some String");
+        }
+        debug!("fin global alloc test");
+    }
 
-#[lang = "eh_personality"] #[no_mangle] pub extern fn eh_personality() {}
+    pub fn alloc_sth() {
+        use alloc::boxed::Box;
+        let mut heap_test = Box::new(42);
+        *heap_test -= 15;
+        let heap_test2 = Box::new("hello");
+        println!("{:?} {:?}", heap_test, heap_test2);
 
-#[lang = "panic_fmt"] #[no_mangle]
-pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &str, line: u32) -> ! {
-    println!("\n\n !! KERNEL PANIC !!");
-    println!("{} at line {}:", file, line);
-    println!("    {}", fmt);
-    loop{}
-}
+        let mut vec_test = vec![1,2,3,4,5,6,7];
+        vec_test[3] = 42;
+        for i in &vec_test {
+            print!("{} ", i);
+        }
+    }
 
-fn print_name() {
-    vga_buffer::clear_screen();
-    println!(" _______     __     __    _______    ______     _______     ________  ");
-    println!("|  ____  \\  |  |   |  |  /  _____|  / _____ \\  |  _____ \\  |  ______| ");
-    println!("| |____  |  |  |   |  | |  |       | |     | | | |_____ |  | |______  ");
-    println!("|  ___  _/  |  |   |  | |  |       | |     | | |  ___  _/  |  ______| ");
-    println!("| |   \\ \\   |  |   |  | |  |       | |     | | | |   \\ \\   | |        ");
-    println!("| |    \\ \\  |  \\___/  | |  |_____  | |_____| | | |    \\ \\  | |______  ");
-    println!("|_/     \\_\\  \\_______/   \\_______|  \\_______/  |_/     \\_\\ |________| ");
+    pub fn guard_page() {
+        use x86_64;
+        // invoke a breakpoint exception
+        x86_64::instructions::interrupts::int3();
+
+        fn stack_overflow() {
+            stack_overflow(); // for each recursion, the return address is pushed
+        }
+
+        // trigger a stack overflow
+        stack_overflow();
+    }
 }

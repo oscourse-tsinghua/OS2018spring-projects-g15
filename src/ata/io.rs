@@ -96,6 +96,7 @@ impl DmaController
 	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u32], disk: u8) -> Result<usize,storage::IoError> {
 		assert_eq!(dst.len(), count * SECTOR_SIZE);
 		let dst = if count > MAX_DMA_SECTORS { &dst[.. MAX_DMA_SECTORS * SECTOR_SIZE] } else { dst };
+		//println!("ide_write_secs: disk={},blockidx={},count={}",disk,blockidx,count);
 		self.ide_write_secs(disk,blockidx,dst,count as u8)
 		//Ok(233)
 	}
@@ -119,6 +120,7 @@ impl DmaController
 	pub fn ide_init(&self) {
 		//static_assert((SECTSIZE % 4) == 0);
 		for ideno in 0 .. MAX_IDE {
+			//println!("ideno:{}",ideno);
 			/* assume that no device here */
 			//ide_devices[ideno].valid = 0;
 
@@ -127,23 +129,44 @@ impl DmaController
 
 			/* wait device ready */
 			self.ide_wait_ready(iobase, 0);
-			
+			//println!("ide_wait_ready");
 			unsafe{
 				/* step1: select drive */
+				//println!("outb");
 				port::outb(iobase + ISA_SDH, (0xE0 | ((ideno & 1) << 4)) as u8);
 				self.ide_wait_ready(iobase, 0);
 
 				/* step2: send ATA identify command */
+				//println!("outb");
 				port::outb(iobase + ISA_COMMAND, IDE_CMD_IDENTIFY);
 				self.ide_wait_ready(iobase, 0);
 
 				/* step3: polling */
+				//println!("inb");
 				if port::inb(iobase + ISA_STATUS) == 0 || self.ide_wait_ready(iobase, 1) != 0 {
 					continue ;
 				}
 
+				//println!("insl");
 				let mut buffer:[u32;128]=[0;128];
-				port::insl(iobase + ISA_DATA, &mut buffer);
+				for i in 0..buffer.len(){
+					buffer[i]=i as u32;
+					if i==1 {
+						//println!("{:#x}",&buffer[i] as *const u32 as usize - ::consts::KERNEL_OFFSET)
+					}
+				}
+				//println!("insl {:#x}",&buffer as *const u32 as usize - ::consts::KERNEL_OFFSET);
+				
+				//println!("insl {:#x}",buffer.as_ptr() as usize - ::consts::KERNEL_OFFSET);
+				//port::insl(iobase + ISA_DATA, &mut buffer);
+				let port=iobase + ISA_DATA;
+				//let buf=&mut buffer;
+				for i in 0..buffer.len(){
+					asm!("insl %dx, (%edi)"
+					:: "{dx}"(port), "{edi}"(&buffer[i])
+					: "edi" : "volatile");
+				}
+				//println!("insl");
 				for i in 0..4{
 					println!("init:{}",buffer[i]);
 				}
@@ -220,7 +243,14 @@ impl DmaController
 					println!("wait ready error");
 				}
 				//self.ide_wait_ready(iobase, 1);
-				port::insl(iobase, tmp);
+				//port::insl(iobase, tmp);
+				let port=iobase;
+				//let buf=&mut buffer;
+				for i in 0..tmp.len(){
+					asm!("insl %dx, (%edi)"
+					:: "{dx}"(port), "{edi}"(&tmp[i])
+					: "edi" : "volatile");
+				}
 				//println!("read :{}",i);
 			}
 		}
@@ -254,13 +284,22 @@ impl DmaController
 				// 	goto out;
 				// }
 				//port::insb(iobase, dst);
+				//println!("i={}",i);
 				let tmp = &src[(i as usize)*SECTOR_SIZE .. ((i+1) as usize)*SECTOR_SIZE];
 				if self.ide_wait_ready(iobase, 1) != 0 {
 					println!("wait ready error");
 				}
 				//println!("write {}:{}",i,src[i as usize]);
-				port::outsl(iobase, tmp);
-				println!("write :{}",i);
+				//println!("outsl");
+				//port::outsl(iobase, tmp);
+				let port=iobase;
+				//let buf=&mut buffer;
+				for i in 0..tmp.len(){
+					asm!("outsl (%esi), %dx"
+        			:: "{dx}"(port), "{esi}"(&tmp[i])
+        			: "edi");
+				}
+				//println!("write :{}",i);
 				// for i in 0..4 {
 				//  	println!("{}",src[i as usize]);
 				// }

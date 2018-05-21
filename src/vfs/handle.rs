@@ -177,7 +177,7 @@ impl File
 		self.node.mut_write(src)
 	}
 
-	
+	/*
 	/// Map a file into the address space
 	pub fn memory_map(&self, address: usize, ofs: u64, size: usize, mode: MemoryMapMode) -> super::Result<MemoryMapHandle> {
 		//log_debug!("memory_map(self={{mode:{:?}}}, address={:#x}, ofs={:#x}, size={:#x}, mode={:?})",
@@ -230,14 +230,14 @@ impl File
 		// TODO: Limit checking
 		// - Reserve the region to be mapped (reserve sticks a zero page in)
 		let page_count = size / PAGE_SIZE;
-		let mut resv = match ::memory::virt::reserve(address as *mut (), page_count)
+		/*let mut resv = match ::memory::virt::reserve(address as *mut (), page_count)
 			{
 			Ok(v) => v,
 			Err(e) => {
 				//log_notice!("mmap reserve error {:?}", e);
 				return Err( super::Error::Locked );
 				},
-			};
+			};*/
 		// - Obtain handles to each cached page, and map into the reservation
 		for i in 0 .. page_count {
 			let page = ofs / PAGE_SIZE as u64 + i as u64;
@@ -259,10 +259,10 @@ impl File
 		}
 		resv.finalise( match mode
 			{
-			MemoryMapMode::ReadOnly  => ::memory::virt::ProtectionMode::UserRO,
-			MemoryMapMode::Execute   => ::memory::virt::ProtectionMode::UserRX,
-			MemoryMapMode::COW       => ::memory::virt::ProtectionMode::UserCOW,
-			MemoryMapMode::WriteBack => ::memory::virt::ProtectionMode::UserRW,
+			MemoryMapMode::ReadOnly  => ::memory::ProtectionMode::UserRO,
+			MemoryMapMode::Execute   => ::memory::ProtectionMode::UserRX,
+			MemoryMapMode::COW       => ::memory::ProtectionMode::UserCOW,
+			MemoryMapMode::WriteBack => ::memory::ProtectionMode::UserRW,
 			})
 			.unwrap();
 		//log_debug!("- Mapped at {:p} + {:#x}", address as *mut (), page_count * ::PAGE_SIZE);
@@ -271,7 +271,7 @@ impl File
 			base: address as *mut (),
 			len: page_count * PAGE_SIZE,
 			})
-	}
+	}*/
 }
 impl ::core::ops::Drop for File
 {
@@ -294,9 +294,9 @@ impl<'a> Drop for MemoryMapHandle<'a>
 		assert_eq!(self.base as usize % PAGE_SIZE, 0, "TODO: Handle unaligned addresses in MemoryMapHandle::drop");
 		let npages = self.len / PAGE_SIZE;
 		// SAFE: This is a uniquely owned handle
-		unsafe {
-			::memory::virt::unmap(self.base, npages);
-		}
+		// unsafe {
+		// 	::memory::virt::unmap(self.base, npages);
+		// }
 	}
 }
 

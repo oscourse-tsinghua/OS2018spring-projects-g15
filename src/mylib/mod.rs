@@ -13,18 +13,18 @@ pub use self::collections::vec_map::VecMap;
 pub use self::sparse_vec::SparseVec;
 //pub use self::string::String;
 pub use self::lazy_static::LazyStatic;
-pub use self::pod::POD;
+//pub use self::pod::POD;
 
-pub use self::pod::{as_byte_slice, as_byte_slice_mut};
+//pub use self::pod::{as_byte_slice, as_byte_slice_mut};
 
 
 pub use self::collections::vec_map;
 pub mod collections;
 
-pub mod thunk;
+//pub mod thunk;
 pub mod borrow;
 
-pub mod ascii;
+//pub mod ascii;
 
 #[macro_use]
 pub mod lazy_static;
@@ -47,11 +47,11 @@ pub mod byte_str;
 //pub extern crate stack_dst;
 
 pub mod io;
-pub mod byteorder;
+//pub mod byteorder;
 
-mod pod;
+//mod pod;
 
-pub mod num;
+//pub mod num;
 
 /// Unsafely cast a byte slice into the destination type (performing checks for alignment and size)
 ///

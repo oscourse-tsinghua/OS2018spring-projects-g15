@@ -309,8 +309,17 @@ impl node::File for FileRef {
 			println!("map: <{},({},{})>",sid,blk.0,blk.1);
 		}
 		let sf=self.mut_file();
-		
-		println!("ofs:{} size:{}",sf.ofs,sf.size);
+		println!("before: ofs:{} size:{}",sf.ofs,sf.size);
+		unsafe{
+			match SDISK.get(&(id as usize)){
+				Some(v) => {
+					sf.ofs=v.0;
+					sf.size=v.1;
+				},
+				None => (),
+			}
+		}
+		println!("after: ofs:{} size:{}",sf.ofs,sf.size);
 		unsafe{
 			match SATA.write(PRIO, sf.ofs as u64, buf.len()/ata::io::SECTOR_SIZE, buf)
 			{

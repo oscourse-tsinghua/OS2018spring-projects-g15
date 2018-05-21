@@ -1,7 +1,5 @@
-//
-//
-//
-/// Returns true if the passed exppression matches the pattern
+
+/// Returns true if the passed expression matches the pattern
 #[macro_export]
 macro_rules! is
 {
@@ -135,38 +133,21 @@ macro_rules! impl_from {
 	};
 }
 
-// NOTE: This should really be in ::threads::wait_queue, but it also needs to be early in parse
-/// Wait on a wait queue contained within a spinlock
-///
-/// Due to lifetime issues, the more erganomical `lock.queue.wait(lock)` does not pass borrow checking.
-/*#[macro_export]
-macro_rules! waitqueue_wait_ext {
-	($lock:expr, $(.$field:ident)+) => ({
-		let mut lock: $crate::arch::sync::HeldSpinlock<_> = $lock;
-		let irql = lock$(.$field)+.wait_int();
-		::core::mem::drop(lock);
-		::core::mem::drop(irql);
-		$crate::threads::reschedule();
-		});
-}*/
-
 /// Override libcore's `try!` macro with one that backs onto `From`
 #[macro_export]
 macro_rules! try {
 	($e:expr) => (
 		match $e {
-		Ok(v) => v,
-		Err(e) => return Err(From::from(e)),
+			Ok(v) => v,
+			Err(e) => return Err(From::from(e)),
 		}
-		);
+	);
 }
 
-
-// Initialise a static Mutex
-//#[macro_export]
-//macro_rules! mutex_init{ ($val:expr) => ($Mutex::new($val)) }
-// Initialise a static LazyMutex
-//#[macro_export]
-//macro_rules! lazymutex_init{ () => ($crate::sync::mutex::LazyMutex::new())}
-
-// vim: ft=rust
+/// Provides a short and noticable "TODO: " message
+#[macro_export]
+macro_rules! todo
+{
+	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
+	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
+}

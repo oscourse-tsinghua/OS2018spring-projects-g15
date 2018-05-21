@@ -8,6 +8,9 @@
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};
+use alloc::heap::{Alloc, AllocErr, Layout};
+use ALLOCATOR;
+use core::ops::Try;
 
 /// Abstraction crate for the reference counting
 pub trait Counter {
@@ -160,38 +163,44 @@ impl<C: Counter, T> fmt::Pointer for Grc<C, T> {
 	}
 }
 
-impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
-{
-	fn drop(&mut self)
-	{
-		// SAFE: Correct pointer accesses, only deallocs if this was last reference
-		unsafe
-		{
-			use core::intrinsics::drop_in_place;
-			use core::mem::{size_of_val,align_of_val};
-			let ptr = self.ptr.as_ptr();
+// impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
+// {
+// 	fn drop(&mut self)
+// 	{
+// 		// SAFE: Correct pointer accesses, only deallocs if this was last reference
+// 		unsafe
+// 		{
+// 			use core::intrinsics::drop_in_place;
+// 			use core::mem::{size_of_val,align_of_val};
+// 			let ptr = self.ptr.as_ptr();
 				
-			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
-			{
-				drop_in_place( &mut (*ptr).val );
-				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
-			}
-		}
-	}
-}
+// 			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
+// 			{
+// 				drop_in_place( &mut (*ptr).val );
+// 				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
+// 			}
+// 		}
+// 	}
+// }
 
 impl<C: Counter, T> GrcInner<C, T>
 {
 	fn new_ptr(value: T) -> *mut GrcInner<C, T>
 	{
 		// SAFE: Correct call to alloc (TODO: Why is alloc unsafe?)
-		unsafe {
-			::memory::heap::alloc( GrcInner {
+		// unsafe {
+		// 	::memory::heap::alloc( GrcInner {
+		// 		strong: C::one(),
+		// 		//weak: C::zero(),
+		// 		val: value,
+		// 		} )
+		// }
+		use alloc::boxed::Box;
+		Box::into_raw(Box::new( GrcInner {
 				strong: C::one(),
 				//weak: C::zero(),
 				val: value,
-				} )
-		}
+				} ))as *mut GrcInner<C,T>
 	}
 }
 
@@ -210,6 +219,13 @@ impl<C: Counter, U> Grc<C, [U]>
 			::core::mem::size_of_val(&*ptr)
 		}
 	}
+	// const fn rcinner_size_const(len: usize) -> usize {
+	// 	// SAFE: (TODO: Check validity here) Should not cause a read from invalid pointer
+	// 	unsafe {
+	// 		let ptr = Self::rcinner_ptr(len, 1 as *mut ());
+	// 		::core::mem::size_of_val(&*ptr)
+	// 	}
+	// }
 	
 	/// Construct an unsized allocation from a size and populating method
 	pub fn from_fn<F>(len: usize, mut fcn: F) -> Self
@@ -217,13 +233,19 @@ impl<C: Counter, U> Grc<C, [U]>
 		F: FnMut(usize)->U
 	{
 		let align = Self::rcinner_align();
-		let size = Self::rcinner_size(len);
+		let size:usize = Self::rcinner_size(len);
+		//const save:usize = size;
 		
 		// SAFE: No mut aliasing, no read from undefined, hopefull correct behavior
 		unsafe {
-			let ptr = ::memory::heap::alloc_raw(size, align);
-			let inner = Self::rcinner_ptr(len, ptr);
-			::core::ptr::write( &mut (*inner).strong, C::one() );
+			use alloc::boxed::Box;
+			use alloc::heap::Layout;
+			//let ptr = ::memory::heap::alloc_raw(size, align);
+			// let ptr = Box::into_raw(Box::new(Vec::with_capacity(size))) as *mut ();
+			let ptr:*mut u8 = (&ALLOCATOR).alloc(Layout::from_size_align(size, align).unwrap()).ok().unwrap();
+
+			let inner = Self::rcinner_ptr(len, ptr as *mut ());
+			::core::ptr::write(&mut (*inner).strong, C::one());
 			for i in 0 .. len {
 				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), fcn(i) );
 			}
