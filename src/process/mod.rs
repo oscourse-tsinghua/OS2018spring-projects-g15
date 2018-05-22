@@ -17,7 +17,9 @@ use arch::interrupts::TrapFrame;
 pub fn init() {
     PROCESSOR.call_once(|| {Mutex::new({
         let mut processor = Processor::new();
+        debug!("after processor new");
         let initproc = Process::new_init();
+        debug!("after new init");
         let idleproc = Process::new("idle", idle_thread);
         processor.add(initproc);
         processor.add(idleproc);
@@ -38,7 +40,7 @@ extern fn idle_thread() {
     loop {
         println!("idle ...");
         let mut i = 0;
-        while i < 1 << 22 {
+        while i < 1 << 23 {
             i += 1;
         }
     }

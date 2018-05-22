@@ -98,7 +98,7 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     test!(global_allocator);
     test!(alloc_sth);
-    test!(guard_page);
+    // test!(guard_page);
     if cfg!(feature = "use_apic") {
         debug!("APIC init");
     } else {
@@ -120,7 +120,13 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     println!("It did not crash!");
 
-    loop{}
+    loop{
+        println!("init ...");
+        let mut i = 0;
+        while i < 1 << 23 {
+            i += 1;
+        }
+    }
     test_end!();
 }
 
@@ -146,7 +152,7 @@ mod test {
         *heap_test -= 15;
         let heap_test2 = Box::new("hello");
         println!("{:?} {:?}", heap_test, heap_test2);
-
+        
         let mut vec_test = vec![1,2,3,4,5,6,7];
         vec_test[3] = 42;
         for i in &vec_test {

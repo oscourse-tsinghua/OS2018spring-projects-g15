@@ -59,10 +59,11 @@ fn timer(tf: &mut TrapFrame, rsp: &mut usize) {
         tick += 1;
         if tick % 100 == 0 {
             debug!("tick 100");
+            use process;
+            process::schedule(rsp);
         }
     }
-    use process;
-    process::schedule(rsp);
+
 }
 
 fn to_user(tf: &mut TrapFrame) {

@@ -60,7 +60,9 @@ impl Processor {
         {
             let process = self.procs.get_mut(&pid).unwrap();
             process.status = Status::Running;
+            use arch::interrupts::TrapFrame;
             *rsp = process.rsp;
+            // *rsp = process.rsp + size_of::<TrapFrame>();
             // TODO switch page table
         }
         self.current_pid = pid;
