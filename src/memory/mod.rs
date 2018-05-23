@@ -18,6 +18,7 @@ pub mod bump_allocator;
 // mod stack_allocator;
 mod address;
 mod frame;
+pub mod memory_set;
 
 pub static ALLOCATOR: Mutex<Option<RecycleAllocator<BumpAllocator>>> = Mutex::new(None);
 

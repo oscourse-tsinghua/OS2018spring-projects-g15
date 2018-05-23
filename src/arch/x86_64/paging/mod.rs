@@ -63,6 +63,14 @@ impl Page {
             end: end,
         }
     }
+
+    /// Iterate pages of address [begin, end)
+    pub fn range_of(begin: VirtualAddress, end: VirtualAddress) -> PageIter {
+        PageIter {
+            start: Page::containing_address(begin),
+            end: Page::containing_address(end - 1),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -172,6 +180,7 @@ impl ActivePageTable {
     }
 }
 
+#[derive(Debug)]
 pub struct InactivePageTable {
     p4_frame: Frame,
 }
