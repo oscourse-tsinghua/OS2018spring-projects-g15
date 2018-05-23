@@ -1,6 +1,6 @@
 // pub use self::area_frame_allocator::AreaFrameAllocator;
 pub use arch::paging::*;
-// pub use self::stack_allocator::Stack;
+pub use self::stack_allocator::Stack;
 pub use self::address::*;
 pub use self::frame::*;
 
@@ -8,6 +8,7 @@ use multiboot2::{BootInformation, MemoryArea, MemoryAreaIter};
 use arch::paging::EntryFlags;
 use self::bump_allocator::BumpAllocator;
 use self::recycle_allocator::RecycleAllocator;
+use self::stack_allocator::StackAllocator;
 use spin::Mutex;
 
 use consts::*;
@@ -15,14 +16,20 @@ use consts::*;
 // mod area_frame_allocator;
 pub mod recycle_allocator;
 pub mod bump_allocator;
-// mod stack_allocator;
+mod stack_allocator;
 mod address;
 mod frame;
 
 pub static ALLOCATOR: Mutex<Option<RecycleAllocator<BumpAllocator>>> = Mutex::new(None);
+pub static STACK_ALLOCATOR: Mutex<Option<StackAllocator>> = Mutex::new(None);
+
+pub fn page_fault_handler(addr: VirtualAddress) -> bool {
+    return false;
+}
 
 pub fn init(boot_info: &BootInformation) -> ActivePageTable {
     assert_has_not_been_called!("memory::init must be called only once");
+    debug!("boot info: {:?}", boot_info);
 
     let memory_map_tag = boot_info.memory_map_tag().expect(
         "Memory map tag required");
@@ -67,6 +74,10 @@ pub fn init(boot_info: &BootInformation) -> ActivePageTable {
 
     unsafe{ init_pat(); }
     let active_table = remap_the_kernel(boot_info);
+
+    let stack_alloc_range = Page::range_of(KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE,
+                                            KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE + 0x1000000);
+    *STACK_ALLOCATOR.lock() = Some(stack_allocator::StackAllocator::new(stack_alloc_range));
 
     active_table
 }
@@ -201,6 +212,13 @@ pub fn remap_the_kernel(boot_info: &BootInformation) -> ActivePageTable
 
     let old_table = active_table.switch(new_table);
     println!("NEW TABLE!!!");
+
+    // extern { fn stack_bottom(); }
+    // let stack_bottom = PhysicalAddress(stack_bottom as u64).to_kernel_virtual();
+    // let stack_bottom_page = Page::containing_address(stack_bottom);
+    // active_table.unmap(stack_bottom_page);
+    // let kernel_stack = Stack::new(stack_bottom + 8 * PAGE_SIZE, stack_bottom + 1 * PAGE_SIZE);
+    // debug!("guard page at {:#x}", stack_bottom_page.start_address());
 
     active_table
 }
