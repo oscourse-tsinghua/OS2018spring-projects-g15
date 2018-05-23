@@ -61,14 +61,24 @@ fn timer(tf: &mut TrapFrame, rsp: &mut usize) {
             debug!("tick 100");
             use process;
             process::schedule(rsp);
+            debug!("finish schedule");
         }
     }
+}
 
+fn fork(tf: &mut TrapFrame) {
+    use process;
+    unsafe {
+        let curr_rsp: usize;
+        asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
+        debug!("currsp={:#x} tf.rsp={:#x}",curr_rsp,tf.rsp);
+        process::fork(tf);
+    }
 }
 
 fn to_user(tf: &mut TrapFrame) {
     use arch::gdt;
-    debug!("\nInterupt: To User");
+    // debug!("\nInterupt: To User");
     // tf.cs = gdt::UCODE_SELECTOR.0 as usize;
     // tf.ss = gdt::UDATA_SELECTOR.0 as usize;
     // tf.rflags |= 3 << 12;   // 设置EFLAG的I/O特权位，使得在用户态可使用in/out指令
@@ -76,13 +86,14 @@ fn to_user(tf: &mut TrapFrame) {
 
 fn to_kernel(tf: &mut TrapFrame) {
     use arch::gdt;
-    debug!("\nInterupt: To Kernel");
+    // debug!("\nInterupt: To Kernel");
     // tf.cs = gdt::KCODE_SELECTOR.0 as usize;
     // tf.ss = gdt::KDATA_SELECTOR.0 as usize;
 }
 
 #[no_mangle]
 pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
+    unsafe{ super::disable(); }
     let mut rsp = tf as *const _ as usize;
 
     // Dispatch
@@ -104,6 +115,7 @@ pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
         }
         T_SWITCH_TOK => to_kernel(tf),
         T_SWITCH_TOU => to_user(tf),
+        T_FORK => fork(tf),
         // T_SYSCALL => syscall(tf, &mut rsp),
         // 0x80 => syscall32(tf, &mut rsp),
         _ => panic!("Unhandled interrupt {:x}", tf.trap_num),
@@ -112,7 +124,8 @@ pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
     // Set return rsp if to user
     let tf = unsafe { &*(rsp as *const TrapFrame) };
     set_return_rsp(tf);
-
+    //debug!("finish trap");
+    unsafe{ super::enable(); }
     rsp
 }
 

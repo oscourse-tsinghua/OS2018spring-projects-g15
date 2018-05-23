@@ -120,11 +120,23 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     println!("It did not crash!");
 
+    println!("fork ...");
+    //use arch::syscall;
+    syscall::fork();
+    use arch::interrupts::TrapFrame;
     loop{
         println!("init ...");
         let mut i = 0;
-        while i < 1 << 23 {
+        while i < 1 << 24 {
             i += 1;
+            let rsp=0xffffff000010cce0 as usize;
+            let tf = unsafe{ &mut *(rsp as *mut TrapFrame) };
+            if (tf.cs!=0x1) {
+                // println!("cs={:#x}", tf.cs);
+                if (tf.cs!=0x10) {
+                    // println!("cs={:#x} ",tf.cs);
+                }
+            }
         }
     }
     test_end!();

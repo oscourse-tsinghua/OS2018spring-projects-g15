@@ -22,11 +22,11 @@ const UCODE: Descriptor = Descriptor::UserSegment(0x0020F80000000000);  // EXECU
 const KDATA: Descriptor = Descriptor::UserSegment(0x0000920000000000);  // DATA_WRITABLE | USER_SEGMENT | PRESENT
 const UDATA: Descriptor = Descriptor::UserSegment(0x0000F20000000000);  // DATA_WRITABLE | USER_SEGMENT | USER_MODE | PRESENT
 
-pub const KCODE_SELECTOR: SegmentSelector = SegmentSelector::new(1, PrivilegeLevel::Ring0);
-pub const UCODE_SELECTOR: SegmentSelector = SegmentSelector::new(2, PrivilegeLevel::Ring3);
-pub const KDATA_SELECTOR: SegmentSelector = SegmentSelector::new(3, PrivilegeLevel::Ring0);
-pub const UDATA_SELECTOR: SegmentSelector = SegmentSelector::new(4, PrivilegeLevel::Ring3);
-pub const TSS_SELECTOR: SegmentSelector = SegmentSelector::new(5, PrivilegeLevel::Ring0);
+pub const KCODE_SELECTOR: SegmentSelector = SegmentSelector::new(1+1, PrivilegeLevel::Ring0);
+pub const UCODE_SELECTOR: SegmentSelector = SegmentSelector::new(1+2, PrivilegeLevel::Ring3);
+pub const KDATA_SELECTOR: SegmentSelector = SegmentSelector::new(1+3, PrivilegeLevel::Ring0);
+pub const UDATA_SELECTOR: SegmentSelector = SegmentSelector::new(1+4, PrivilegeLevel::Ring3);
+pub const TSS_SELECTOR: SegmentSelector = SegmentSelector::new(1+5, PrivilegeLevel::Ring0);
 
 static mut TSS_PTR: Unique<TaskStateSegment> = unsafe{ Unique::new_unchecked(0 as *mut _) };
 
@@ -37,7 +37,7 @@ pub fn set_ring0_rsp(rsp: usize) {
     debug!("gdt.set_ring0_rsp: {:#x}", rsp);
     unsafe {
         TSS_PTR.as_mut().privilege_stack_table[0] = VirtualAddress(rsp);
-//        debug!("TSS:\n{:?}", TSS_PTR.as_ref());
+        debug!("TSS:\n{:?}", TSS_PTR.as_ref());
     }
 }
 

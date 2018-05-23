@@ -119,6 +119,7 @@ pub mod irq {
     pub const T_SYSCALL    : u8 = 0x80; // SYSCALL, ONLY FOR THIS PROJ
     pub const T_SWITCH_TOU : u8 = 120;  // user/kernel switch
     pub const T_SWITCH_TOK : u8 = 121;  // user/kernel switch
+    pub const T_FORK       : u8 = 122;  // user/kernel switch
 
 	pub const IRQ_TIMER    : u8 =  0;
 	pub const IRQ_KBD      : u8 =  1;

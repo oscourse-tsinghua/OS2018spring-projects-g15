@@ -33,6 +33,8 @@ impl TrapFrame {
     pub fn new_kernel_thread(code: extern fn(), rsp: usize) -> Self {
         use arch::gdt;
         let mut tf = TrapFrame::default();
+        println!("KCODE_SELECTOR={:#x} KDATA_SELECTOR={:#x}",gdt::KCODE_SELECTOR.0,gdt::KDATA_SELECTOR.0);
+        println!("UCODE_SELECTOR={:#x} UDATA_SELECTOR={:#x}",gdt::UCODE_SELECTOR.0,gdt::UDATA_SELECTOR.0);
         tf.cs = gdt::KCODE_SELECTOR.0 as usize;
         tf.rip = code as usize;
         tf.ss = gdt::KDATA_SELECTOR.0 as usize;
