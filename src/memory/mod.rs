@@ -73,10 +73,16 @@ pub fn init(boot_info: &BootInformation) -> ActivePageTable {
     *ALLOCATOR.lock() = Some(RecycleAllocator::new(BumpAllocator::new(kernel_start.0 as usize, kernel_end.0 as usize, memory_map_tag.memory_areas())));
 
     unsafe{ init_pat(); }
-    let active_table = remap_the_kernel(boot_info);
+    let mut active_table = remap_the_kernel(boot_info);
 
     let stack_alloc_range = Page::range_of(KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE,
                                             KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE + 0x1000000);
+    for page in Page::range_of(KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE,
+                              KERNEL_HEAP_OFFSET + KERNEL_HEAP_SIZE + 0x1000000) {
+        let result = active_table.map(page, EntryFlags::WRITABLE);
+        unsafe { result.ignore(); }
+    }
+    active_table.flush_all();
     *STACK_ALLOCATOR.lock() = Some(stack_allocator::StackAllocator::new(stack_alloc_range));
 
     active_table
@@ -147,6 +153,14 @@ pub fn allocate_frames(count: usize) -> Option<Frame> {
 pub fn deallocate_frames(frame: Frame, count: usize) {
     if let Some(ref mut allocator) = *ALLOCATOR.lock() {
         allocator.deallocate_frames(frame, count)
+    } else {
+        panic!("frame allocator not initialized");
+    }
+}
+
+pub fn alloc_stack(count: usize) -> Option<Stack> {
+    if let Some(ref mut allocator) = *STACK_ALLOCATOR.lock() {
+        allocator.alloc_stacks(count)
     } else {
         panic!("frame allocator not initialized");
     }
