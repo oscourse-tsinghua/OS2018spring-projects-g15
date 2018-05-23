@@ -2,13 +2,10 @@ pub use self::entry::*;
 pub use self::mapper::Mapper;
 pub use self::temporary_page::TemporaryPage;
 
-use multiboot2::BootInformation;
-use core::ptr::Unique;
 use core::ops::{Deref, DerefMut, Add};
 use core::fmt;
 use core::fmt::Debug;
 
-use self::table::{Table, Level4};
 use self::entry::EntryFlags;
 pub use memory::{PAGE_SIZE, Frame, FrameAllocator, VirtualAddress};
 
@@ -120,7 +117,7 @@ impl ActivePageTable {
 
     pub fn with<F>(&mut self,
                    table: &mut InactivePageTable,
-                   temporary_page: &mut temporary_page::TemporaryPage, // new
+                   temporary_page: &mut temporary_page::TemporaryPage,
                    f: F)
         where F: FnOnce(&mut Mapper)
     {
@@ -151,6 +148,7 @@ impl ActivePageTable {
 
     pub fn switch(&mut self, new_table: InactivePageTable) -> InactivePageTable {
         use x86_64::registers::control_regs;
+        debug!("switch table to {:?}", new_table.p4_frame);
 
         let old_table = InactivePageTable {
             p4_frame: Frame::containing_address(
