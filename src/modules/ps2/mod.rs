@@ -5,6 +5,7 @@ mod keycodes;
 
 use x86_64::instructions::port::{inb, outb};
 use spin::Mutex;
+use self::i8042::Port;
 
 #[derive(Debug, Copy, Clone)]
 enum PS2Dev
@@ -32,17 +33,21 @@ static mouse_qbt: mouse::Type = mouse::Type::QuintBtn;
 static kbd_MF2: keyboard::Type = keyboard::Type::MF2;
 static kbd_MF2Emul: keyboard::Type = keyboard::Type::MF2Emul;
 
-// lazy_static! {
+
 static MOUSE_DEV: Mutex<Option<PS2Dev>> = Mutex::new(None);
-// }
-// lazy_static! {
 static KBD_DEV: Mutex<Option<PS2Dev>> = Mutex::new(None);
-// }
+
+static port1: Mutex<Option<Port>> = Mutex::new(None);
+static port2: Mutex<Option<Port>> = Mutex::new(None);
 
 #[cfg(any(target_arch="x86_64", target_arch="x86"))]
 pub fn init() {
 	i8042::init();
 	*KBD_DEV.lock() = PS2Dev::new_keyboard(&kbd_MF2).1;
+	*MOUSE_DEV.lock() = PS2Dev::new_mouse(&mouse_std).1;
+
+	*port1.lock() = Some(Port::new(false));
+	*port2.lock() = Some(Port::new(true));
 
 	// let (mouse_byte, mouse_dev) = PS2Dev::new_mouse(mouse::Type::Std);
 	// let (kbd_byte, kbd_dev) = PS2Dev::new_keyboard(keyboard::Type::MF2);
@@ -53,31 +58,29 @@ pub fn init() {
 	// IDT.interrupts[IRQ_MOUSE as usize].set_handler_fn(handle_irq_mouse);
 }
 
-use x86_64::structures::idt::ExceptionStackFrame;
-use self::i8042::S_8042_CTRLR;
-pub extern "x86-interrupt" fn handle_irq_kbd(
-	_stack_frame: &mut ExceptionStackFrame)
+use self::i8042::{write_cmd, write_data};
+pub fn handle_irq_kbd()
 {
 	// SAFE: Current impl avoids most races, but can misbehave (returnign bad data) if an IRQ happens between the inb calls
 	unsafe {
-		// NOTE: This matches qemu's behavior, but the wiki says it's chipset dependent
-		let mask = 0x01;
-		if inb(0x64) & mask == 0 {
-			return
-		}
-		else {
-			let b = inb(0x60);
-			debug!("PS2 RX pri {:#02x}", b);
-			if let Some(ob) = KBD_DEV.lock().expect("No kbd dev").recv_byte(b) {
-				let mut c = S_8042_CTRLR.lock();
-				c.write_data(ob);
-			}
+		// let mask = 0x01;
+		// if inb(0x64) & mask == 0 {
+		// 	return
+		// }
+		// else {
+		// 	let b = inb(0x60);
+		// 	debug!("PS2 RX pri {:#02x}", b);
+		// 	if let Some(ob) = KBD_DEV.lock().expect("No kbd dev").recv_byte(b) {
+		// 		write_data(ob);
+		// 	}
+		// }
+		if let Some(ref mut rp) = *port1.lock() {
+			rp.handle_irq();
 		}
 	}
 }
 
-pub extern "x86-interrupt" fn handle_irq_mouse(
-	stack_frame: &mut ExceptionStackFrame)
+pub fn handle_irq_mouse()
 {
 	// SAFE: Current impl avoids most races, but can misbehave (returnign bad data) if an IRQ happens between the inb calls
 	unsafe {
@@ -90,8 +93,7 @@ pub extern "x86-interrupt" fn handle_irq_mouse(
 			let b = inb(0x60);
 			debug!("PS2 RX second {:#02x}", b);
 			if let Some(ob) = MOUSE_DEV.lock().expect("No mouse dev").recv_byte(b) {
-				let mut c = S_8042_CTRLR.lock();
-				c.write_cmd(0xD4);
+				write_cmd(0xD4);
 			}
 		}
 	}

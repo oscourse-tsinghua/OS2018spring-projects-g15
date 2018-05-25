@@ -3,7 +3,7 @@ use spin::Mutex;
 
 use arch::driver::acpi;
 
-struct Port {
+pub struct Port {
 	is_second: bool,
 	dev: super::PS2Dev,
 }
@@ -14,9 +14,7 @@ pub struct Ctrlr8042 {
 	// port2: Option< irqs::ObjectHandle >,
 }
 
-lazy_static! {
-    pub static ref S_8042_CTRLR: Mutex<Ctrlr8042> = Mutex::new(unsafe{Ctrlr8042::new()}.expect("No 8042 Controller!"));
-}
+pub static S_8042_CTRLR: Mutex<Option<Ctrlr8042>> = Mutex::new(None);
 
 pub fn init() {
 	// 1. Check with ACPI is this machine has a PS2 controller
@@ -35,28 +33,68 @@ pub fn init() {
 		debug!("No FADT, assuming 8042 present");
 		true
 	};
-	
+	if enabled {
+		unsafe {
+			*S_8042_CTRLR.lock() = Some(Ctrlr8042::new().unwrap());
+		}
+	}
 	if !enabled {
 		debug!("8042 PS/2 Controller disabled due to ACPI");
 	}
 }
 
+pub fn write_data(b: u8) {
+	unsafe {
+		if let Some(ref mut c) = *S_8042_CTRLR.lock() {
+			c.write_data(b);
+		}
+	}
+}
+
+pub fn write_cmd(cmd: u8) {
+	unsafe {
+		if let Some(ref mut c) = *S_8042_CTRLR.lock() {
+			c.write_cmd(cmd);
+		}
+	}
+}
+
 impl Port {
-	fn new(is_second: bool) -> Port {
+	pub fn new(is_second: bool) -> Port {
 		Port {
 			is_second: is_second,
 			dev: Default::default(),
 		}
 	}
-	unsafe fn send_byte(&mut self, b: u8) {
+	pub unsafe fn send_byte(&mut self, b: u8) {
 		// EVIL: Obtains a new instance of the controller to use its methods
 		// - Should be safe to do, as long as we don't get two IRQs running at the same time
 		debug!("PS2 TX {} {:#02x}", if self.is_second { "sec" } else { "pri" }, b);
-		let mut c = S_8042_CTRLR.lock();
-		if self.is_second {
-			c.write_cmd(0xD4);
+		if let Some(ref mut c) = *S_8042_CTRLR.lock() {
+			if self.is_second {
+				c.write_cmd(0xD4);
+			}
+			c.write_data(b);
 		}
-		c.write_data(b);
+	}
+
+	pub fn handle_irq(&mut self) -> bool {
+		// SAFE: Current impl avoids most races, but can misbehave (returnign bad data) if an IRQ happens between the inb calls
+		unsafe {
+			// NOTE: This matches qemu's behavior, but the wiki says it's chipset dependent
+			let mask = if self.is_second { 0x20 } else { 0x01 };
+			if inb(0x64) & mask == 0 {
+				false
+			}
+			else {
+				let b = inb(0x60);
+				debug!("PS2 RX {} {:#02x}", if self.is_second { "sec" } else { "pri" }, b);
+				if let Some(ob) = self.dev.recv_byte(b) {
+					self.send_byte(ob);
+				}
+				true
+			}
+		}
 	}
 }
 
