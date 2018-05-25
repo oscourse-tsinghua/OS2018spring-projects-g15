@@ -76,17 +76,18 @@ fn fork(tf: &mut TrapFrame) {
     }
 }
 
-fn to_user(tf: &mut TrapFrame) {
+fn to_user(tf: &mut TrapFrame, rsp: &mut usize) {
     use arch::gdt;
-    // debug!("\nInterupt: To User");
+    debug!("\nInterupt: To User");
     // tf.cs = gdt::UCODE_SELECTOR.0 as usize;
     // tf.ss = gdt::UDATA_SELECTOR.0 as usize;
+    // debug!("cs:{:#x} ss:{:#x}",tf.cs,tf.ss);
     // tf.rflags |= 3 << 12;   // 设置EFLAG的I/O特权位，使得在用户态可使用in/out指令
 }
 
 fn to_kernel(tf: &mut TrapFrame) {
     use arch::gdt;
-    // debug!("\nInterupt: To Kernel");
+    debug!("\nInterupt: To Kernel");
     // tf.cs = gdt::KCODE_SELECTOR.0 as usize;
     // tf.ss = gdt::KDATA_SELECTOR.0 as usize;
 }
@@ -114,7 +115,7 @@ pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
             ack(irq);
         }
         T_SWITCH_TOK => to_kernel(tf),
-        T_SWITCH_TOU => to_user(tf),
+        T_SWITCH_TOU => to_user(tf,&mut rsp),
         T_FORK => fork(tf),
         // T_SYSCALL => syscall(tf, &mut rsp),
         // 0x80 => syscall32(tf, &mut rsp),
@@ -124,7 +125,6 @@ pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
     // Set return rsp if to user
     let tf = unsafe { &*(rsp as *const TrapFrame) };
     set_return_rsp(tf);
-    //debug!("finish trap");
     unsafe{ super::enable(); }
     rsp
 }

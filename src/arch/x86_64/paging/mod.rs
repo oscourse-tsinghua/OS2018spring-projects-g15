@@ -148,7 +148,7 @@ impl ActivePageTable {
 
     pub fn switch(&mut self, new_table: InactivePageTable) -> InactivePageTable {
         use x86_64::registers::control_regs;
-        debug!("switch table to {:?}", new_table.p4_frame);
+        debug!("switch table to {:#x}", new_table.p4_frame.start_address());
 
         let old_table = InactivePageTable {
             p4_frame: Frame::containing_address(
@@ -158,6 +158,7 @@ impl ActivePageTable {
         unsafe {
             control_regs::cr3_write(new_table.p4_frame.start_address());
         }
+        debug!("switch table over");
         old_table
     }
 
@@ -180,7 +181,7 @@ impl ActivePageTable {
 
 #[derive(Debug)]
 pub struct InactivePageTable {
-    p4_frame: Frame,
+    pub p4_frame: Frame,
 }
 
 impl InactivePageTable {

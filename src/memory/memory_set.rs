@@ -101,12 +101,18 @@ impl MemorySet {
                 Some(phys_start) => {
                     for page in Page::range_of(area.start_addr, area.end_addr) {
                         let frame = Frame::containing_address(phys_start.get() + page.start_address() - area.start_addr);
-                        pt.map_to(page, frame.clone(), EntryFlags::from_bits(area.flags.into()).unwrap());
+                        let res=pt.map_to(page, frame.clone(), EntryFlags::from_bits(area.flags.into()).unwrap());
+                        unsafe{
+                            res.ignore();
+                        }
                     }
                 },
                 None => {
                     for page in Page::range_of(area.start_addr, area.end_addr) {
-                        pt.map(page, EntryFlags::from_bits(area.flags.into()).unwrap());
+                        let res=pt.map(page, EntryFlags::from_bits(area.flags.into()).unwrap());
+                        unsafe{
+                            res.ignore();
+                        }
                     }
                 },
             }

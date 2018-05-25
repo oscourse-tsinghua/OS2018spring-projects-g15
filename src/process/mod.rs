@@ -2,6 +2,7 @@ use spin::{Once, Mutex};
 
 use self::process::*;
 use self::processor::*;
+use arch::paging::{ActivePageTable,InactivePageTable};
 
 mod process;
 mod processor;
@@ -14,15 +15,25 @@ mod stack;
 /// * Debug: 用于Debug输出
 use arch::interrupts::TrapFrame;
 
-pub fn init() {
+#[cfg(feature = "link_user_program")]
+extern {
+    fn _binary_user_forktest_start();
+    fn _binary_user_forktest_end();
+}
+
+pub fn init(mut act:ActivePageTable) {
     PROCESSOR.call_once(|| {Mutex::new({
-        let mut processor = Processor::new();
-        debug!("after processor new");
         let initproc = Process::new_init();
         debug!("after new init");
-        //let idleproc = Process::new("idle", idle_thread);
+        let idleproc = Process::new("idle", idle_thread);
+        #[cfg(feature = "link_user_program")]
+        let forktest = Process::new_user(_binary_user_forktest_start as usize,
+                                         _binary_user_forktest_end as usize,&mut act);
+        let mut processor = Processor::new(act);
+        debug!("after processor new");
         processor.add(initproc);
-        //processor.add(idleproc);
+        processor.add(idleproc);
+        processor.add(forktest);
         processor
     })});
 }
@@ -49,13 +60,13 @@ pub fn fork(tf: &TrapFrame) {
 
 extern fn idle_thread() {
     println!("I'm idle");
-    let a=vec![0,1,2,233,4];
-    for i in 0..5{
-        println!("a[{}]={}",i,a[i]);
-    }
-    use arch::syscall;
-    syscall::fork();
-    println!("idle: finish fork!");
+    // let a=vec![0,1,2,233,4];
+    // for i in 0..5{
+    //     println!("a[{}]={}",i,a[i]);
+    // }
+    // use arch::syscall;
+    // syscall::fork();
+    // println!("idle: finish fork!");
     loop {
         println!("idle ...");
         let mut i = 0;

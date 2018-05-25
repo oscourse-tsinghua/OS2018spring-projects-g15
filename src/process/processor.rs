@@ -1,15 +1,19 @@
 use alloc::BTreeMap;
+use core::cell::RefCell;
+use arch::paging::{ActivePageTable,InactivePageTable};
 use super::*;
 
 #[derive(Debug)]
 pub struct Processor {
+    active_table: RefCell<ActivePageTable>,
     procs: BTreeMap<Pid, Process>,
     current_pid: Pid,
 }
 
 impl Processor {
-    pub fn new() -> Self {
+    pub fn new(act: ActivePageTable) -> Self {
         Processor {
+            active_table: RefCell::new(act),
             procs: BTreeMap::<Pid, Process>::new(),
             current_pid: 0,
         }
@@ -54,6 +58,12 @@ impl Processor {
         debug!("switch to:{}->{}",pid0,pid);
         let rsp0 = *rsp;
 
+        let curr_rsp: usize;
+        unsafe{
+            asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
+        }
+        debug!("currsp={:#x}",curr_rsp);
+
         if pid == self.current_pid {
             return;
         }
@@ -74,13 +84,16 @@ impl Processor {
             // if (pid==0){
             //     stf.ss=tf.ss;
             // }
-            debug!("proc.rsp={:#x} tf.rsp={:#x} stf.rsp={:#x}",process.rsp,tf.rsp,stf.rsp);
+            
+            //stf.ss=0x20;
+            debug!("tf_addr={:#x} stf_addr={:#x}",srsp,process.rsp);
             debug!("tf.rip={:#x} stf.rip={:#x}",tf.rip,stf.rip);
-            debug!("tf.rflags={:#x} stf.rflags={:#x}",tf.rflags,stf.rflags);
             debug!("tf.cs={:#x} stf.cs={:#x}",tf.cs,stf.cs);
+            debug!("tf.rflags={:#x} stf.rflags={:#x}",tf.rflags,stf.rflags);
+            debug!("tf.rsp={:#x} stf.rsp={:#x}",tf.rsp,stf.rsp);
             debug!("tf.ss={:#x} stf.ss={:#x}",tf.ss,stf.ss);
             //if pid0!=0 && pid!=0 {
-                stf.rip=tf.rip;
+                //stf.rip=tf.rip as usize;
             //}
             *rsp = process.rsp;
             /*if pid0==0 || pid==0 {
@@ -113,7 +126,7 @@ impl Processor {
     }
 
     /// Fork the current process
-    pub fn fork(&mut self, tf: &TrapFrame) {
+    pub fn fork(&mut self, tf: &TrapFrame) {/*
         let mut curr_rsp: usize;
         let mut curr_rip: usize;
         unsafe{
@@ -127,8 +140,9 @@ impl Processor {
             asm!("" : "={rip}"(curr_rip) : : : "intel", "volatile");
         }
         debug!("porser2 currsp={:#x} currip={:#x} tf.rsp={:#x}",curr_rsp,curr_rip,tf.rsp);
-        let new = new2.fork(tf);
-        //self.add(new);
+        let new = new2.fork(tf);*/
+        let new = self.procs.get_mut(&self.current_pid).unwrap().fork(tf,&mut self.active_table.borrow_mut());
+        self.add(new);
         debug!("rip={:#x}",tf.rip);
         debug!("finish fork");
     }

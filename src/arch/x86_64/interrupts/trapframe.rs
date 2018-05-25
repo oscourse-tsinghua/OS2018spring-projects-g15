@@ -42,4 +42,14 @@ impl TrapFrame {
         tf.rflags = 0x282;
         tf
     }
+    pub fn new_user_thread(entry_addr: usize, rsp: usize) -> Self {
+        use arch::gdt;
+        let mut tf = TrapFrame::default();
+        tf.cs = gdt::UCODE_SELECTOR.0 as usize;
+        tf.rip = entry_addr;
+        tf.ss = gdt::UDATA_SELECTOR.0 as usize;
+        tf.rsp = rsp;
+        tf.rflags = 0x3282;
+        tf
+    }
 }

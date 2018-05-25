@@ -11,6 +11,7 @@ qemu_auto_exit = []
 test = []
 use_apic = []
 pti = []
+link_user_program = []
 
 [build-dependencies]
 cc = "1.0"
@@ -27,6 +28,7 @@ linked_list_allocator = "0.5.0"
 bit_field = "0.7.0"
 raw-cpuid = "2.0.2"
 slab_allocator = "0.3.1"
+xmas-elf = "0.6"
 
 redox_syscall = "0.1.37"
 

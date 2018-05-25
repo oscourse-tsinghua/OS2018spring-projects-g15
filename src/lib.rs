@@ -40,6 +40,7 @@ extern crate once;
 extern crate lazy_static;
 #[macro_use]
 extern crate x86_64;
+extern crate xmas_elf;
 
 extern crate rlibc;
 extern crate volatile;
@@ -105,12 +106,13 @@ pub extern fn rust_main(multiboot_information_address: usize) {
         debug!("PIC init");
     }
 
-    process::init();
+    process::init(active_table);
     // unsafe{ arch::interrupts::enable(); }
     // debug!("interrupt init");
 
     unsafe{ arch::interrupts::disable(); }
     use arch::syscall;
+    use arch::interrupts::TrapFrame;
     syscall::switch_to_user();
     debug!("in user mode");
     syscall::switch_to_kernel();
@@ -120,15 +122,20 @@ pub extern fn rust_main(multiboot_information_address: usize) {
 
     println!("It did not crash!");
 
-    println!("fork ...");
-    //use arch::syscall;
-    syscall::fork();
-    use arch::interrupts::TrapFrame;
+    // println!("fork ...");
+    // //use arch::syscall;
+    // syscall::fork();
+    // debug!("init:finish syscall fork");
     loop{
         println!("init ...");
+        // let curr_rsp: usize;
+        // unsafe{
+        //     asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
+        // }
+        // debug!("currsp={:#x}",curr_rsp);
         let mut i = 0;
         while i < 1 << 24 {
-            i += 1;
+            i += 1;/*
             let rsp=0xffffff000010cce0 as usize;
             let tf = unsafe{ &mut *(rsp as *mut TrapFrame) };
             if (tf.cs!=0x1) {
@@ -136,7 +143,7 @@ pub extern fn rust_main(multiboot_information_address: usize) {
                 if (tf.cs!=0x10) {
                     // println!("cs={:#x} ",tf.cs);
                 }
-            }
+            }*/
         }
     }
     test_end!();

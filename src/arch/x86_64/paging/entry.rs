@@ -4,6 +4,7 @@ use multiboot2::ElfSection;
 pub const ADDRESS_MASK: usize = 0x000f_ffff_ffff_f000;
 pub const COUNTER_MASK: u64 = 0x3ff0_0000_0000_0000;
 
+#[derive(Copy, Clone)]
 pub struct Entry(u64);
 
 impl Entry {

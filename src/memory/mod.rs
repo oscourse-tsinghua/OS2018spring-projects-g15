@@ -1,4 +1,4 @@
-// pub use self::area_frame_allocator::AreaFrameAllocator;
+//pub use self::area_frame_allocator::AreaFrameAllocator;
 pub use arch::paging::*;
 pub use self::stack_allocator::Stack;
 pub use self::address::*;
@@ -17,7 +17,7 @@ use consts::*;
 pub mod recycle_allocator;
 pub mod bump_allocator;
 mod stack_allocator;
-mod address;
+pub mod address;
 mod frame;
 pub mod memory_set;
 
@@ -165,6 +165,43 @@ pub fn alloc_stack(count: usize) -> Option<Stack> {
     } else {
         panic!("frame allocator not initialized");
     }
+}
+
+pub fn make_page_table(set: &memory_set::MemorySet, act: &mut ActivePageTable) -> InactivePageTable {
+    // use x86_64::registers::control_regs;
+    // let old_table = InactivePageTable {
+    //         p4_frame: Frame::containing_address(
+    //             control_regs::cr3().0 as usize
+    //         ),
+    //     };
+    // return old_table;
+
+    let mut temporary_page = TemporaryPage::new(Page::containing_address(0xcafebabe));
+    //let mut page_table = InactivePageTable::new(allocate_frames(1), &mut act, &mut temporary_page);
+    let mut page_table = {
+        let frame = allocate_frames(1).expect("no more frames");
+        InactivePageTable::new(frame, act, &mut temporary_page)
+    };
+    //return page_table;
+
+    use consts::{KERNEL_HEAP_PML4, KERNEL_PML4};
+    let e510 = act.p4()[KERNEL_PML4].clone();
+    let e509 = act.p4()[KERNEL_HEAP_PML4].clone();
+    debug!("make_page_table act: e510={:?} e509={:?}",e510,e509);
+    act.with(&mut page_table, &mut temporary_page, |pt: &mut Mapper| {
+        set.map(pt);
+
+        pt.p4_mut()[KERNEL_PML4] = e510;
+        pt.p4_mut()[KERNEL_HEAP_PML4] = e509;
+        let res=pt.identity_map(Frame::
+        containing_address(0xfee00000), EntryFlags::WRITABLE); // LAPIC
+        unsafe{
+            res.ignore();
+        }
+        //pt.identity_map(Frame::containing_address(0xfee00000), EntryFlags::WRITABLE);
+    });
+    act.flush_all();
+    page_table
 }
 
 pub fn remap_the_kernel(boot_info: &BootInformation) -> ActivePageTable

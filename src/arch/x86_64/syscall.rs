@@ -12,4 +12,5 @@ pub fn switch_to_kernel() {
 
 pub fn fork() {
     unsafe { int!(T_FORK); }
+    debug!("finish syscall fork");
 }
