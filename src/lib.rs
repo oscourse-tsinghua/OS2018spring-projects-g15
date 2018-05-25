@@ -95,33 +95,32 @@ pub extern fn rust_main(multiboot_information_address: usize) {
         keyboard::init();
     }
     modules::ps2::init();
+    // arch::driver::init(&mut active_table);
+    unsafe { arch::interrupts::enable(); }
 
     test!(global_allocator);
     test!(alloc_sth);
     // test!(guard_page);
     if cfg!(feature = "use_apic") {
-        debug!("APIC init");
+        debug!("APIC");
     } else {
-        debug!("PIC init");
+        debug!("PIC");
     }
 
-    process::init();
+    // process::init();
+
+    // unsafe{ arch::interrupts::disable(); }
+    // use arch::syscall;
+    // syscall::switch_to_user();
+    // debug!("in user mode");
+    // syscall::switch_to_kernel();
+    // debug!("in kernel mode");
     // unsafe{ arch::interrupts::enable(); }
-    // debug!("interrupt init");
-
-    unsafe{ arch::interrupts::disable(); }
-    use arch::syscall;
-    syscall::switch_to_user();
-    debug!("in user mode");
-    syscall::switch_to_kernel();
-    debug!("in kernel mode");
-    unsafe{ arch::interrupts::enable(); }
-
 
     println!("It did not crash!");
 
     loop{
-        println!("init ...");
+        // println!("main thread");
         let mut i = 0;
         while i < 1 << 23 {
             i += 1;
@@ -152,7 +151,7 @@ mod test {
         *heap_test -= 15;
         let heap_test2 = Box::new("hello");
         println!("{:?} {:?}", heap_test, heap_test2);
-        
+
         let mut vec_test = vec![1,2,3,4,5,6,7];
         vec_test[3] = 42;
         for i in &vec_test {

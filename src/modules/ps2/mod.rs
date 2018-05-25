@@ -85,16 +85,19 @@ pub fn handle_irq_mouse()
 	// SAFE: Current impl avoids most races, but can misbehave (returnign bad data) if an IRQ happens between the inb calls
 	unsafe {
 		// NOTE: This matches qemu's behavior, but the wiki says it's chipset dependent
-		let mask = 0x20;
-		if inb(0x64) & mask == 0 {
-			return
-		}
-		else {
-			let b = inb(0x60);
-			debug!("PS2 RX second {:#02x}", b);
-			if let Some(ob) = MOUSE_DEV.lock().expect("No mouse dev").recv_byte(b) {
-				write_cmd(0xD4);
-			}
+		// let mask = 0x20;
+		// if inb(0x64) & mask == 0 {
+		// 	return
+		// }
+		// else {
+		// 	let b = inb(0x60);
+		// 	debug!("PS2 RX second {:#02x}", b);
+		// 	if let Some(ob) = MOUSE_DEV.lock().expect("No mouse dev").recv_byte(b) {
+		// 		write_cmd(0xD4);
+		// 	}
+		// }
+		if let Some(ref mut rp) = *port2.lock() {
+			rp.handle_irq();
 		}
 	}
 }

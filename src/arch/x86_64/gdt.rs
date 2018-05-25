@@ -16,11 +16,13 @@ static GDT: Once<Gdt> = Once::new();
 pub const DOUBLE_FAULT_IST_INDEX: usize = 0;
 
 // Copied from xv6 x86_64
-const GNULL: Descriptor = Descriptor::UserSegment(0);
 const KCODE: Descriptor = Descriptor::UserSegment(0x0020980000000000);  // EXECUTABLE | USER_SEGMENT | PRESENT | LONG_MODE
 const UCODE: Descriptor = Descriptor::UserSegment(0x0020F80000000000);  // EXECUTABLE | USER_SEGMENT | USER_MODE | PRESENT | LONG_MODE
 const KDATA: Descriptor = Descriptor::UserSegment(0x0000920000000000);  // DATA_WRITABLE | USER_SEGMENT | PRESENT
 const UDATA: Descriptor = Descriptor::UserSegment(0x0000F20000000000);  // DATA_WRITABLE | USER_SEGMENT | USER_MODE | PRESENT
+const UCODE32: Descriptor = Descriptor::UserSegment(0x00cffa00_0000ffff);
+// EXECUTABLE | USER_SEGMENT | USER_MODE | PRESENT
+const UDATA32: Descriptor = Descriptor::UserSegment(0x00cff200_0000ffff);  // EXECUTABLE | USER_SEGMENT | USER_MODE | PRESENT
 
 pub const KCODE_SELECTOR: SegmentSelector = SegmentSelector::new(1, PrivilegeLevel::Ring0);
 pub const UCODE_SELECTOR: SegmentSelector = SegmentSelector::new(2, PrivilegeLevel::Ring3);
@@ -37,19 +39,19 @@ pub fn set_ring0_rsp(rsp: usize) {
     debug!("gdt.set_ring0_rsp: {:#x}", rsp);
     unsafe {
         TSS_PTR.as_mut().privilege_stack_table[0] = VirtualAddress(rsp);
-//        debug!("TSS:\n{:?}", TSS_PTR.as_ref());
+        // debug!("TSS:\n{:?}", TSS_PTR.as_ref());
     }
 }
 
 pub struct Gdt {
-    table: [u64; 8],
+    table: [u64; 10],
     next_free: usize,
 }
 
 impl Gdt {
     pub fn new() -> Gdt {
         Gdt {
-            table: [0; 8],
+            table: [0; 10],
             next_free: 1,
         }
     }
@@ -140,7 +142,7 @@ impl Descriptor {
 
 pub fn init() {
     use x86_64::structures::gdt::SegmentSelector;
-    use x86_64::instructions::segmentation::set_cs;
+    use x86_64::instructions::segmentation::{set_cs, load_ss};
     use x86_64::instructions::tables::load_tss;
 
     use alloc::boxed::Box;
@@ -161,18 +163,22 @@ pub fn init() {
     let mut tss_selector = SegmentSelector(0);
     let gdt = GDT.call_once(|| {
         let mut gdt = Gdt::new();
-        gdt.add_entry(GNULL);
-        code_selector = gdt.add_entry(Descriptor::kernel_code_segment());
+        // code_selector = gdt.add_entry(Descriptor::kernel_code_segment());
+        gdt.add_entry(KCODE);
         gdt.add_entry(UCODE);
         gdt.add_entry(KDATA);
         gdt.add_entry(UDATA);
+        gdt.add_entry(UCODE32);
+        gdt.add_entry(UDATA32);
         tss_selector = gdt.add_entry(Descriptor::tss_segment(&tss));
         gdt
     });
     gdt.load();
     unsafe {
         // reload code segment register
-        set_cs(code_selector);
+        // set_cs(code_selector);
+        set_cs(KCODE_SELECTOR);
+        load_ss(KDATA_SELECTOR);
         // load TSS
         load_tss(tss_selector);
     }

@@ -14,6 +14,11 @@ fn page_fault(tf: &mut TrapFrame) {
     let addr = cr2().0;
     debug!("\nEXCEPTION: Page Fault @ {:#x}, code: {:#x}", addr, tf.error_code);
 
+    use memory::page_fault_handler;
+    if page_fault_handler(addr) {
+        return;
+    }
+
     loop {}
 }
 
@@ -35,10 +40,17 @@ use arch::driver::pic::ack;
 use consts::irq::*;
 
 fn keyboard() {
-    use arch::driver::keyboard;
-    debug!("\nInterupt: Keyboard");
-    let c = keyboard::get();
-    debug!("Key = '{}' {}", c as u8 as char, c);
+    // use arch::driver::keyboard;
+    // debug!("\nInterupt: Keyboard");
+    // let c = keyboard::get();
+    // debug!("Key = '{}' {}", c as u8 as char, c);
+    use modules::ps2::handle_irq_kbd;
+    handle_irq_kbd();
+}
+
+fn mouse() {
+    use modules::ps2::handle_irq_mouse;
+    handle_irq_mouse();
 }
 
 fn com1() {
@@ -59,26 +71,29 @@ fn timer(tf: &mut TrapFrame, rsp: &mut usize) {
         tick += 1;
         if tick % 100 == 0 {
             debug!("tick 100");
-            use process;
-            process::schedule(rsp);
+            // use process;
+            // process::schedule(rsp);
         }
     }
 
 }
 
-fn to_user(tf: &mut TrapFrame) {
+fn to_user(rsp: &mut usize, tf: &mut TrapFrame) {
     use arch::gdt;
     debug!("\nInterupt: To User");
-    // tf.cs = gdt::UCODE_SELECTOR.0 as usize;
-    // tf.ss = gdt::UDATA_SELECTOR.0 as usize;
-    // tf.rflags |= 3 << 12;   // 设置EFLAG的I/O特权位，使得在用户态可使用in/out指令
+    println!("{:?}", tf);
+    println!("now rsp: {:#x}, ucs:{:#x}, uds: {:#x}, kcs: {:#x}, kds: {:#x}", *rsp as usize, gdt::UCODE_SELECTOR.0, gdt::UDATA_SELECTOR.0, gdt::KCODE_SELECTOR.0, gdt::KDATA_SELECTOR.0);
+    tf.cs = gdt::UCODE_SELECTOR.0 as usize;
+    tf.ss = gdt::UDATA_SELECTOR.0 as usize;
+    tf.rflags |= 3 << 12;   // 设置EFLAG的I/O特权位，使得在用户态可使用in/out指令
 }
 
 fn to_kernel(tf: &mut TrapFrame) {
     use arch::gdt;
     debug!("\nInterupt: To Kernel");
-    // tf.cs = gdt::KCODE_SELECTOR.0 as usize;
-    // tf.ss = gdt::KDATA_SELECTOR.0 as usize;
+    println!("{:?}", tf);    
+    tf.cs = gdt::KCODE_SELECTOR.0 as usize;
+    tf.ss = gdt::KDATA_SELECTOR.0 as usize;
 }
 
 #[no_mangle]
@@ -96,6 +111,7 @@ pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
             match irq {
                 IRQ_TIMER => timer(tf, &mut rsp),
                 IRQ_KBD => keyboard(),
+                IRQ_MOUSE => mouse(),
                 IRQ_COM1 => com1(),
                 IRQ_COM2 => com2(),
                 _ => panic!("Invalid IRQ number."),
@@ -103,7 +119,7 @@ pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
             ack(irq);
         }
         T_SWITCH_TOK => to_kernel(tf),
-        T_SWITCH_TOU => to_user(tf),
+        T_SWITCH_TOU => to_user(&mut rsp, tf),
         // T_SYSCALL => syscall(tf, &mut rsp),
         // 0x80 => syscall32(tf, &mut rsp),
         _ => panic!("Unhandled interrupt {:x}", tf.trap_num),

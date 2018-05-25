@@ -87,7 +87,7 @@ impl IoApic {
 		// which happens to be that cpu's APIC ID.
 		self.write_irq(irq, RedirectionEntry::NONE, cpunum);
 	}
-	fn id(&mut self) -> u8 {
+	pub fn id(&mut self) -> u8 {
 		self.read(REG_ID).get_bits(24..28) as u8
 	}
 	fn version(&mut self) -> u8 {
