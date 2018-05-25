@@ -21,6 +21,25 @@ pub mod address;
 mod frame;
 pub mod memory_set;
 
+//pub mod heap;
+
+#[derive(PartialEq,Debug,Copy,Clone)]
+/// Memory protection flags
+pub enum ProtectionMode
+{
+	/// Inaccessible
+	Unmapped,
+	/// Kernel readonly
+	KernelRO,
+	KernelRW,	// Kernel read-write
+	KernelRX,	// Kernel read-execute
+	UserRO,	// User
+	UserRW,
+	UserRX,
+	UserCOW,	// User Copy-on-write (becomes UserRW on write)
+	UserRWX,	// AVOID - Read-Write-Execute (exists for internal reasons)
+}
+
 pub static ALLOCATOR: Mutex<Option<RecycleAllocator<BumpAllocator>>> = Mutex::new(None);
 pub static STACK_ALLOCATOR: Mutex<Option<StackAllocator>> = Mutex::new(None);
 

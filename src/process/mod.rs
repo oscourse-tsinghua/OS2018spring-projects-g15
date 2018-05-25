@@ -27,13 +27,13 @@ pub fn init(mut act:ActivePageTable) {
         debug!("after new init");
         let idleproc = Process::new("idle", idle_thread);
         #[cfg(feature = "link_user_program")]
-        let forktest = Process::new_user(_binary_user_forktest_start as usize,
-                                         _binary_user_forktest_end as usize,&mut act);
+        //let forktest = Process::new_user(_binary_user_forktest_start as usize,
+        //                                 _binary_user_forktest_end as usize,&mut act);
         let mut processor = Processor::new(act);
         debug!("after processor new");
         processor.add(initproc);
         processor.add(idleproc);
-        processor.add(forktest);
+        // processor.add(forktest);
         processor
     })});
 }

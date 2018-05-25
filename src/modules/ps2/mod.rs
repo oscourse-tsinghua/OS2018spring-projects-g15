@@ -1,5 +1,6 @@
 mod i8042;
 mod keyboard;
+#[macro_use]
 mod mouse;
 mod keycodes;
 
