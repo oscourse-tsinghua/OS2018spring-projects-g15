@@ -3,7 +3,7 @@ use core::ptr::Unique;
 
 use ALLOCATOR;
 use alloc::allocator::{Alloc, Layout};
-use memory::PhysicalAddress;
+use memory::PAddr;
 
 /// A process stack. The default size is 1M1B with an alignment of 16 bytes.
 pub struct Stack {
@@ -42,13 +42,13 @@ impl Stack {
     }
 
     /// Returns the physical address of top of the stack.
-    pub fn top(&self) -> PhysicalAddress {
-        unsafe { PhysicalAddress(self.as_mut_ptr().add(Self::SIZE) as u64) }
+    pub fn top(&self) -> PAddr {
+        unsafe { PAddr(self.as_mut_ptr().add(Self::SIZE) as u64) }
     }
 
     /// Returns the physical address of bottom of the stack.
-    pub fn bottom(&self) -> PhysicalAddress {
-        unsafe { PhysicalAddress(self.as_mut_ptr() as u64) }
+    pub fn bottom(&self) -> PAddr {
+        unsafe { PAddr(self.as_mut_ptr() as u64) }
     }
 }
 

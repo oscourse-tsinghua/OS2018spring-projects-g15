@@ -6,7 +6,7 @@ use core::fmt::{Debug, Formatter, Error};
 pub struct MemoryArea {
     start_addr: VirtualAddress,
     end_addr: VirtualAddress,
-    phys_start_addr: Option<PhysicalAddress>,
+    phys_start_addr: Option<PAddr>,
     flags: u64,
     name: &'static str,
 }
@@ -27,7 +27,7 @@ impl MemoryArea {
         MemoryArea {
             start_addr,
             end_addr,
-            phys_start_addr: Some(PhysicalAddress(start_addr as u64)),
+            phys_start_addr: Some(PAddr(start_addr as u64)),
             flags: flags.bits(),
             name,
         }
@@ -37,7 +37,7 @@ impl MemoryArea {
         MemoryArea {
             start_addr,
             end_addr,
-            phys_start_addr: Some(PhysicalAddress::from_kernel_virtual(start_addr)),
+            phys_start_addr: Some(PAddr::from_kernel_virtual(start_addr)),
             flags: flags.bits(),
             name,
         }

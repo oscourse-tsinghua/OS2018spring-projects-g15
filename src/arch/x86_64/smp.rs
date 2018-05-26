@@ -1,5 +1,5 @@
 use arch::driver::{acpi::ACPI_Result, apic::start_ap};
-use memory::PhysicalAddress;
+use memory::PAddr;
 
 extern {
     fn entryother_start();  // physical addr of entryother
@@ -12,7 +12,7 @@ pub fn start_other_cores(acpi: &ACPI_Result, mc: &mut MemoryController) {
     mc.map_page_identity(ENTRYOTHER_ADDR as usize - 1);
     mc.map_page_identity(ENTRYOTHER_ADDR as usize);
     mc.map_page_identity(entryother_start as usize);
-    mc.map_page_p2v(PhysicalAddress(0));
+    mc.map_page_p2v(PAddr(0));
     copy_entryother();
 
     let args = unsafe{ &mut *(ENTRYOTHER_ADDR as *mut EntryArgs).offset(-1) };

@@ -9,34 +9,54 @@ pub mod pit;
 
 use memory::ActivePageTable;
 
-pub fn init<F>(active_table: &mut ActivePageTable, mut page_map: F)
-    where F: FnMut(usize) {
+pub fn init(active_table: &mut ActivePageTable) {
+    use memory::{Frame};
+    use arch::paging::EntryFlags;
 
     assert_has_not_been_called!();
 
     // TODO Handle this temp page map.
-    page_map(0); // EBDA
+    let result = active_table.identity_map(Frame::containing_address(0), EntryFlags::WRITABLE); // EBDA
+    result.flush(active_table);
     for addr in (0xE0000 .. 0x100000).step_by(0x1000) {
-        page_map(addr);
+        let result = active_table.identity_map(Frame::containing_address(addr), EntryFlags::WRITABLE);
+        result.flush(active_table);
     }
-    page_map(0x7fe1000); // RSDT
-
-    unsafe{
-        pic::init();
-        apic::local_apic::init(active_table);
-        acpi::init(active_table);
-    }
+    let result = active_table.identity_map(Frame::containing_address(0x7fe1000), EntryFlags::WRITABLE); // RSDT
+    result.flush(active_table);
+    
 
     // if cfg!(feature = "use_apic") {
     //     pic::disable();
 
-    //     page_map(acpi.lapic_addr as usize);  // LAPIC
-    //     page_map(0xFEC00000);  // IOAPIC
+    //     active_table.identity_map(Frame::containing_address(acpi), EntryFlags::WRITABLE.lapic_addr as usize);  // LAPIC
+    //     active_table.identity_map(Frame::containing_address(0xFEC00000), EntryFlags::WRITABLE);  // IOAPIC
 
-    //     apic::init(acpi.lapic_addr, acpi.ioapic_id);
+        // apic::init(acpi.lapic_addr, acpi.ioapic_id);
     // } else {
     //     pic::init();
     // }
+    if cfg!(feature = "use_apic") {
+        unsafe {
+            pic::disable();
+
+            let result = active_table.identity_map(Frame::containing_address(0xfee00000), EntryFlags::WRITABLE);  // LAPIC
+            result.flush(active_table);
+            
+            let result = active_table.identity_map(Frame::containing_address(0xFEC00000), EntryFlags::WRITABLE);  // IOAPIC
+            result.flush(active_table);
+            
+
+            // apic::init(acpi.lapic_addr, acpi.ioapic_id);
+            apic::local_apic::init(active_table);
+        }
+    } else {
+        unsafe {
+            pic::init();
+            apic::local_apic::init(active_table);
+            acpi::init(active_table);
+        }
+    }
     pit::init();
     serial::init();
     keyboard::init();

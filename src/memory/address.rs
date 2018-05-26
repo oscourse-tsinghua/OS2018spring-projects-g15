@@ -1,5 +1,5 @@
 use consts::{KERNEL_OFFSET, KERNEL_SIZE};
-pub use x86_64::{PhysicalAddress};
+pub use x86_64::PhysicalAddress as PAddr;
 pub type VirtualAddress = usize;
 
 pub trait FromToVirtualAddress {
@@ -9,7 +9,7 @@ pub trait FromToVirtualAddress {
 	fn from_kernel_virtual(addr: VirtualAddress) -> Self;
 }
 
-impl FromToVirtualAddress for PhysicalAddress {
+impl FromToVirtualAddress for PAddr {
 	fn get(&self) -> usize {
 		self.0 as usize
 	}
@@ -22,6 +22,6 @@ impl FromToVirtualAddress for PhysicalAddress {
 	}
 	fn from_kernel_virtual(addr: VirtualAddress) -> Self {
 		assert!(addr >= KERNEL_OFFSET && addr < KERNEL_OFFSET + KERNEL_SIZE);
-		PhysicalAddress((addr - KERNEL_OFFSET) as u64)
+		PAddr((addr - KERNEL_OFFSET) as u64)
 	}
 }
