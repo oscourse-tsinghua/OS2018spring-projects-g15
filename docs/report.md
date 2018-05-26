@@ -23,7 +23,7 @@ G15 小组：乔一凡 杨国炜
    * 虚拟内存管理，x86_64 建立四级页表，有较为简单的虚存管理框架
    * 内核线程和用户进程，可以实现进程切换；但是目前我们的 fork 仍然不能工作
    * 调度器：简单的 Round Robin 算法
-   * 没有实现同步互斥机制，使用开关中断的方法实现互斥访问
+   * 没有实现同步互斥机制，使用开关中断的方法和rust自带的Mutex、RwLock实现互斥访问
 2. 实现 IDE 硬盘驱动，能够完成 IO 操作
 3. 完成一个简单文件系统
 
@@ -77,7 +77,111 @@ idt 表的设置也是一个大坑。在最初的框架中，我们使用了一�
 
 在收到 PS2 设备发送的信息后，驱动会维护一个状态机判断设备类型并相应设置端口设备，准备好后即可实现响应响应设备的请求；响应设备请求同样根据协议使用状态机进行处理。事实上在对设备进行抽象后，不同设备的响应实现逻辑都比较相似，简化了实现。
 
+### 实现 IDE 硬盘驱动，能够完成 IO 操作
 
+参考ucore实现了ide硬盘驱动。
+
+能实现将磁盘某位位置连续的n个扇区大小的数据读入到dst数组中，同时能将dst数组写入到磁盘某位位置后连续的地址中。
+
+在实现中rust的x86_64::port提供了如inb、outb等函数，因此相较使用c实现更加简单，可以不需要进行汇编代码的编写。
+
+### 完成一个简单文件系统
+
+参考rust_os及ucore完成了简单的文件系统，rust_os实现的是ramfs，ramfs是一种基于RAM做存储的文件系统，RAM做存储所以会有很高的存储效率。但由于ramfs的实现就相当于把RAM作为最后一层的存储，所以在ramfs中不会使用swap。因此ramfs有一个很大的缺陷就是它会吃光系统所有的内存，同时它也只能被root用户访问。
+
+我基于上面实现的IDE driver，参考ucore及rust_os完成了基于硬盘的简单文件系统，该文件系统能处理以下几种类型的文件，其中Symlink实现的是软链接机制：
+
+* pub enum NodeType<'a>{
+
+  ​    File,  //常规文件类型
+
+  ​    Dir,  //文件夹类型
+
+  ​    Symlink(&'a super::Path),  //链接类型，允许读取链接内容
+
+  }
+
+对三种不同类型文件的基本操作包括
+
+* File
+
+  pub trait File: NodeBase {
+
+  ​    /// 返回此文件的大小（以字节为单位）
+
+  ​    fn size(&self) -> u64;
+
+  ​    /// 更新文件的大小（零填充或截断）
+
+  ​    fn truncate(&self, newsize: u64) -> Result<u64>;
+
+  ​    /// 清除文件的指定范围（用零替换）
+
+  ​    fn clear(&self, ofs: u64, size: u64) -> Result<()>;
+
+  ​    /// 从文件中读取数据
+
+  ​    fn read(&self, ofs: u64, buf: &mut [u32]) -> Result<usize>;
+
+  ​    /// 将数据写入文件
+
+  ​    fn write(&mut self, id: InodeId, buf: &[u32]) -> Result<usize>;
+
+  }
+
+* Dir
+
+  pub trait Dir: NodeBase {
+
+  ​    /// 获取给定名称的节点
+
+  ​    fn lookup(&self, name: &ByteStr) -> Result<InodeId>;
+
+  ​    /// 读取条目
+
+  ​    /// 返回：
+
+  ​    /// - Ok(Next Offset)
+
+  ​    /// - Err(e) : 错误
+
+  ​    fn read(&self, start_ofs: usize, callback: &mut ReadDirCallback) -> Result<usize>;
+
+  ​    /// 在该目录下创建一个新文件，返回新创建的节点编号
+
+  ​    fn create(&self, name: &ByteStr, nodetype: NodeType) -> Result<InodeId>;
+
+  }
+
+* Symlink
+
+  pub trait Symlink: NodeBase {
+
+  ​    /// 将符号链接的内容读入一个字符串
+
+  ​    fn read(&self) -> ByteString;
+
+  }
+
+  内存索引节点结构，描述了文件的inode等信息，用于引用计数、同步互斥等操作。
+
+* pub struct CacheHandle{
+
+  ​    mountpt: usize,  //挂载点编号
+
+  ​    inode: InodeId,   //inode编号
+
+  ​    ptr: *const CachedNode,
+
+  } 
+
+  struct CachedNode{
+
+  ​    refcount: AtomicUsize,  //引用计数
+
+  ​    node: CacheNodeInt,    //inode，用枚举类型表示，有3种不同的inode
+
+  } 
 
 ## 实验过程日志
 
@@ -90,6 +194,8 @@ idt 表的设置也是一个大坑。在最初的框架中，我们使用了一�
 但另一方面，rust 本身对于资源申请和使用所有权的严格要求也大大降低了代码出错的概率；可能的不安全代码段会强制程序员使用 unsafe 进行声明；对于权限和可见性的更加严格的要求，等等语言特性在编译器就通过严格的约束帮助程序员及时发现 bug，降低 debug 成本。
 
 同时，rust 作为比 C 更加高级的语言，在语言层面提供了更多描述能力更强的特性和实现。同时，rust 的包管理器 cargo 可以让我们更方便地指定工程使用的外部库以及版本，从而可以方便地利用各种现成的轮子。如在实现中我们大量使用的 spin::Mutex 等。
+
+另外在文件系统等代码中我们大量用到了枚举类型enum，该类型相较于c的enum的优点是，rust的enum不同元素可以为不同的类型，而c的enum只能是数字。
 
 ## 参考文献与代码
 
@@ -119,4 +225,3 @@ Rust Driver
 
 * G13 [https://github.com/oscourse-tsinghua/OS2018spring-projects-g13](https://github.com/oscourse-tsinghua/OS2018spring-projects-g13)
 
-  
