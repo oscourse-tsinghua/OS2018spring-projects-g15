@@ -6,6 +6,7 @@
 #[allow(unused_imports)]
 use prelude::*;
 use metadevs::storage::VolumeHandle;
+use mylib::byte_str::{ByteStr,ByteString};
 
 //module_define!(VFS, [], init);
 
@@ -101,3 +102,36 @@ pub fn init()
 	root.mkdir("temp").unwrap();
 }
 
+pub fn readFile(path: &str, dst: &mut [u32]){
+	match handle::File::open( Path::new(&path), handle::FileOpenMode::SharedRO )
+	{
+		Err(e) => println!("waring: VFS test file can't be opened: {:?}", e),
+		Ok(mut h) => {
+			println!("debug: VFS open test = {:?}", h);
+			let mut buf :[u32; 128] = [0; 128];
+			let sz = h.read(0, &mut buf).unwrap();
+
+			debug!("read:{}",path);
+			for i in 0..dst.len(){
+				dst[i]=buf[i] as u32;
+			}
+		},
+	}
+}
+
+pub fn writeFile(path: &str, src: &[u32]){
+	match handle::File::open( Path::new(path), handle::FileOpenMode::SharedRO )
+	{
+		Err(e) => println!("waring: VFS test file can't be opened: {:?}", e),
+		Ok(mut h) => {
+			//println!("debug: VFS open test = {:?}", h);
+			let mut buf :[u32; 128] = [0; 128];
+
+			for i in 0..src.len(){
+				buf[i]=src[i] as u32;
+			}
+			debug!("write:{}",path);
+			h.mut_write(&mut buf);
+		},
+	}
+}

@@ -81,18 +81,18 @@ pub fn init()
 /// Mount a volume at the provided location 在提供位置安装volume
 // TODO: Parse options
 pub fn test(){
-	println!("test:");
+	//println!("test:");
 	DriverRegistration::new("ramfs",&super::ramfs::S_DRIVER);
 }
 pub fn mount2(location: &Path, fs: &str, _options: &[&str]) -> Result<(),MountError>
 {
-	println!("mount2:");
+	//println!("mount2:");
 	DriverRegistration::new("ramfs",&super::ramfs::S_DRIVER);
 	Ok(())
 }
 pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) -> Result<(),MountError>
 {
-	println!("mount: ");
+	//println!("mount: ");
 	//DriverRegistration::new("ramfs",&super::ramfs::S_DRIVER);
 	//DriverRegistration::new("ramfs",&super::ramfs::S_DRIVER);
 	unsafe{println!("cnt: {}",cnt);}

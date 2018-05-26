@@ -232,7 +232,7 @@ impl node::Dir for FileRef {
 		{
 		Entry::Occupied(_) => Err(vfs::Error::AlreadyExists),
 		Entry::Vacant(e) => {
-			println!("ramfs create");
+			//println!("ramfs create");
 			let nn = match nodetype
 				{
 				node::NodeType::Dir  => RamFile::Dir (Default::default()),
@@ -275,9 +275,9 @@ impl node::File for FileRef {
 	}
 	/// Read data from the file
 	fn read(&self, ofs: u64, buf: &mut [u32]) -> node::Result<usize>{
-		println!("reading..");
+		//println!("reading..");
 		let sf=self.file();
-		println!("ofs:{} size:{}",sf.ofs,sf.size);
+		//println!("ofs:{} size:{}",sf.ofs,sf.size);
 		unsafe{
 			match SATA.read(PRIO, ofs, buf.len()/ata::io::SECTOR_SIZE, buf)
 			{
@@ -289,9 +289,9 @@ impl node::File for FileRef {
 	}
 	/// Write data to the file, can only grow the file if ofs==size
 	fn write(&self, ofs: u64, buf: &[u32]) -> node::Result<usize>{
-		println!("writing..");
+		//println!("writing..");
 		let sf=self.file();
-		println!("ofs:{} size:{}",sf.ofs,sf.size);
+		//println!("ofs:{} size:{}",sf.ofs,sf.size);
 		unsafe{
 			match SATA.write(PRIO, ofs, buf.len()/ata::io::SECTOR_SIZE, buf)
 			{
@@ -303,13 +303,13 @@ impl node::File for FileRef {
 	}
 	/// Write data to the file, can only grow the file if ofs==size
 	fn mut_write(&mut self, id: node::InodeId, buf: &[u32]) -> node::Result<usize>{
-		println!("mut writing {}..",id);
+		//println!("mut writing {}..",id);
 		self.allocate(id as usize, buf.len());
 		for (sid,blk) in unsafe{SDISK.iter()}{
-			println!("map: <{},({},{})>",sid,blk.0,blk.1);
+			//println!("map: <{},({},{})>",sid,blk.0,blk.1);
 		}
 		let sf=self.mut_file();
-		println!("before: ofs:{} size:{}",sf.ofs,sf.size);
+		//println!("before: ofs:{} size:{}",sf.ofs,sf.size);
 		unsafe{
 			match SDISK.get(&(id as usize)){
 				Some(v) => {
@@ -319,7 +319,7 @@ impl node::File for FileRef {
 				None => (),
 			}
 		}
-		println!("after: ofs:{} size:{}",sf.ofs,sf.size);
+		//println!("after: ofs:{} size:{}",sf.ofs,sf.size);
 		unsafe{
 			match SATA.write(PRIO, sf.ofs as u64, buf.len()/ata::io::SECTOR_SIZE, buf)
 			{

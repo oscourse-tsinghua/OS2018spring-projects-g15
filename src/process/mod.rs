@@ -3,6 +3,7 @@ use spin::{Once, Mutex};
 use self::process::*;
 use self::processor::*;
 use arch::paging::{ActivePageTable,InactivePageTable};
+use vfs;
 
 mod process;
 mod processor;
@@ -69,6 +70,13 @@ extern fn idle_thread() {
     // println!("idle: finish fork!");
     loop {
         println!("idle ...");
+/*
+		let mut dst: [u32;10]=[0;10];
+		vfs::readFile("/system/1.TXT",&mut dst);
+		for j in 0..10{
+            println!("dst[{}]={}",j,dst[j]);
+		}
+*/
         let mut i = 0;
         while i < 1 << 23 {
             i += 1;

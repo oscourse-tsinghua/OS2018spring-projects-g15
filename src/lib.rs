@@ -204,8 +204,36 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     // //use arch::syscall;
     // syscall::fork();
     // debug!("init:finish syscall fork");
+	let mut cnt=0;
     loop{
-        println!("init ...");
+        println!("init ...");/*
+		let mut dst: [u32;10]=[0;10];
+		cnt=cnt+1;
+		// for j in 0..10{
+		// 	dst[j]=cnt;
+		// }
+		// println!("write:{}",cnt);
+		// vfs::writeFile("/system/1.TXT",&mut dst);
+		use vfs::handle;
+		use vfs::Path;
+		match handle::File::open( Path::new("/system/1.TXT"), handle::FileOpenMode::SharedRO )
+		{
+			Err(e) => println!("waring: VFS test file can't be opened: {:?}", e),//log_warning!("VFS test file can't be opened: {:?}", e),
+			Ok(mut h) => {
+				//log_debug!("VFS open test = {:?}", h);
+				println!("debug: write VFS open test = {:?}", h);
+				let mut buf :[u32; 256] = [0; 256];
+
+				for i in 0..10{
+					buf[i]=cnt as u32;
+				}
+
+				h.mut_write(&mut buf);
+				buf[1]=0;
+				let sz = h.read(0, &mut buf).unwrap();
+				println!("{},{}",buf[1],cnt);
+			},
+		}*/
         // let curr_rsp: usize;
         // unsafe{
         //     asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
@@ -353,25 +381,35 @@ fn vfs_test()
 	// *. Testing: open a file known to exist on the testing disk	
 	if true
 	{
-		handle::Dir::open(Path::new("/system")).unwrap().mkfile("1.TXT", handle::FileOpenMode::SharedRO).unwrap();
-		println!("ls2 !");
+		println!("\nls1:");
+		ls(Path::new("/"));
+		println!("\nls2:");
 		ls(Path::new("/system"));
+		println!("new 1.TXT:");
+		handle::Dir::open(Path::new("/system")).unwrap().mkfile("1.TXT", handle::FileOpenMode::SharedRO).unwrap();
+		println!("\nls3:");
+		ls(Path::new("/system"));
+		println!("");
 		match handle::File::open( Path::new("/system/1.TXT"), handle::FileOpenMode::SharedRO )
 		{
 		Err(e) => println!("waring: VFS test file can't be opened: {:?}", e),//log_warning!("VFS test file can't be opened: {:?}", e),
 		Ok(mut h) => {
 			//log_debug!("VFS open test = {:?}", h);
-            println!("debug: VFS open test = {:?}", h);
+            //println!("debug: VFS open test = {:?}", h);
 			let mut buf :[u32; 256] = [0; 256];
-
+			println!("write:/system/1.TXT\n buf[i]=i*2");
 			for i in 0..buf.len(){
-				buf[i]=(i*3) as u32;
+				buf[i]=(i*2) as u32;
 			}
 
 			h.mut_write(&mut buf);
 			h.mut_write(&mut buf);
 
 			let sz = h.read(0, &mut buf).unwrap();
+			println!("\nread:/system/1.TXT");
+			for i in 0..10{
+				println!("buf[{}]={}",i,buf[i]);
+			}
 			//let sz = h.write(0, &mut buf).unwrap();
 			
 

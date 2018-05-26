@@ -33,12 +33,12 @@ impl Processor {
 
     pub fn add(&mut self, mut process: Process) {
         let pid = self.alloc_pid();
-        //debug!("finish add");
+        ////deug!("finish add");
         process.pid = pid;
-        //debug!("finish add");
-        //debug!("add:{}",pid);
+        ////deug!("finish add");
+        ////deug!("add:{}",pid);
         self.procs.insert(pid, process);
-        //debug!("finish add");
+        ////deug!("finish add");
     }
 
     pub fn schedule(&mut self, rsp: &mut usize) {
@@ -55,14 +55,14 @@ impl Processor {
     fn switch_to(&mut self, pid: Pid, rsp: &mut usize) {
         // for debug print
         let pid0 = self.current_pid;
-        debug!("switch to:{}->{}",pid0,pid);
+        //deug!("switch to:{}->{}",pid0,pid);
         let rsp0 = *rsp;
 
         let curr_rsp: usize;
         unsafe{
             asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
         }
-        debug!("currsp={:#x}",curr_rsp);
+        //deug!("currsp={:#x}",curr_rsp);
 
         if pid == self.current_pid {
             return;
@@ -86,12 +86,12 @@ impl Processor {
             // }
             
             //stf.ss=0x20;
-            debug!("tf_addr={:#x} stf_addr={:#x}",srsp,process.rsp);
-            debug!("tf.rip={:#x} stf.rip={:#x}",tf.rip,stf.rip);
-            debug!("tf.cs={:#x} stf.cs={:#x}",tf.cs,stf.cs);
-            debug!("tf.rflags={:#x} stf.rflags={:#x}",tf.rflags,stf.rflags);
-            debug!("tf.rsp={:#x} stf.rsp={:#x}",tf.rsp,stf.rsp);
-            debug!("tf.ss={:#x} stf.ss={:#x}",tf.ss,stf.ss);
+            //deug!("tf_addr={:#x} stf_addr={:#x}",srsp,process.rsp);
+            //deug!("tf.rip={:#x} stf.rip={:#x}",tf.rip,stf.rip);
+            //deug!("tf.cs={:#x} stf.cs={:#x}",tf.cs,stf.cs);
+            //deug!("tf.rflags={:#x} stf.rflags={:#x}",tf.rflags,stf.rflags);
+            //deug!("tf.rsp={:#x} stf.rsp={:#x}",tf.rsp,stf.rsp);
+            //deug!("tf.ss={:#x} stf.ss={:#x}",tf.ss,stf.ss);
             //if pid0!=0 && pid!=0 {
                 //stf.rip=tf.rip as usize;
             //}
@@ -109,11 +109,11 @@ impl Processor {
             /*let srsp=*rsp as usize;
             let tf = unsafe{ &mut *(srsp as *mut TrapFrame) };
             let stf = unsafe{ &*(process.rsp as *mut TrapFrame) };
-            debug!("proc.rsp={:#x} tf.rsp={:#x} stf.rsp={:#x}",process.rsp,tf.rsp,stf.rsp);
-            debug!("tf.rip={:#x} stf.rip={:#x}",tf.rip,stf.rip);
-            debug!("tf.rflags={:#x} stf.rflags={:#x}",tf.rflags,stf.rflags);
-            debug!("tf.cs={:#x} stf.cs={:#x}",tf.cs,stf.cs);
-            debug!("tf.ss={:#x} stf.ss={:#x}",tf.ss,stf.ss);*/
+            //deug!("proc.rsp={:#x} tf.rsp={:#x} stf.rsp={:#x}",process.rsp,tf.rsp,stf.rsp);
+            //deug!("tf.rip={:#x} stf.rip={:#x}",tf.rip,stf.rip);
+            //deug!("tf.rflags={:#x} stf.rflags={:#x}",tf.rflags,stf.rflags);
+            //deug!("tf.cs={:#x} stf.cs={:#x}",tf.cs,stf.cs);
+            //deug!("tf.ss={:#x} stf.ss={:#x}",tf.ss,stf.ss);*/
             //*tf=(*stf).clone();
             // tf.rsp=stf.rsp;
             // tf.rip=stf.rip;
@@ -122,7 +122,7 @@ impl Processor {
            // tf.ss=stf.ss;
         }
         self.current_pid = pid;
-        debug!("Processor: switch from {} to {}\n  rsp: {:#x} -> {:#x}", pid0, pid, rsp0, rsp);
+        //deug!("Processor: switch from {} to {}\n  rsp: {:#x} -> {:#x}", pid0, pid, rsp0, rsp);
     }
 
     /// Fork the current process
@@ -133,17 +133,17 @@ impl Processor {
             asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
             asm!("" : "={rip}"(curr_rip) : : : "intel", "volatile");
         }
-        debug!("porser currsp={:#x} currip={:#x} tf.rsp={:#x}",curr_rsp,curr_rip,tf.rsp);
+        //deug!("porser currsp={:#x} currip={:#x} tf.rsp={:#x}",curr_rsp,curr_rip,tf.rsp);
         let new2 = self.procs.get_mut(&self.current_pid).unwrap();//.fork(tf);
         unsafe{
             asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
             asm!("" : "={rip}"(curr_rip) : : : "intel", "volatile");
         }
-        debug!("porser2 currsp={:#x} currip={:#x} tf.rsp={:#x}",curr_rsp,curr_rip,tf.rsp);
+        //deug!("porser2 currsp={:#x} currip={:#x} tf.rsp={:#x}",curr_rsp,curr_rip,tf.rsp);
         let new = new2.fork(tf);*/
         let new = self.procs.get_mut(&self.current_pid).unwrap().fork(tf,&mut self.active_table.borrow_mut());
         self.add(new);
-        debug!("rip={:#x}",tf.rip);
-        debug!("finish fork");
+        //deug!("rip={:#x}",tf.rip);
+        //deug!("finish fork");
     }
 }

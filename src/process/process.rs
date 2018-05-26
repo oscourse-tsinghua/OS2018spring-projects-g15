@@ -37,7 +37,7 @@ pub enum Status {
 impl Process {
     /// Make a new kernel thread
     pub fn new(name: &'static str, entry: extern fn()) -> Self {
-        debug!("new proc");
+        //deug!("new proc");
         let error_log = "cannot alloc stack of proc {}".to_string() + name;
         // let kstack = Stack::new().expect(&error_log);
         // let rsp = unsafe{ (kstack.top().0 as *mut TrapFrame).offset(-1) } as usize;
@@ -47,7 +47,7 @@ impl Process {
         let rsp = kstack.push_at_top(tf);/*
         let stack_bottom = Box::into_raw(kstack);
         let stack_top = (1<<12) + stack_bottom as usize;
-        debug!("stack bottom: {:#x}, stack top: {:#x}", stack_bottom as usize, stack_top);
+        //deug!("stack bottom: {:#x}, stack top: {:#x}", stack_bottom as usize, stack_top);
         let rsp = unsafe{ (stack_top as *mut TrapFrame).offset(-1) } as usize;
         //let rsp=0xffffff000010cea0;
         //let rsp=0xffffe80000003d60;
@@ -71,14 +71,14 @@ impl Process {
     /// Should be called only once
     pub fn new_init() -> Self {
         let kstack=memory::alloc_stack(7).unwrap();
-        debug!("stack bottom: {:#x}, stack top: {:#x}", kstack.bottom(), kstack.top());
+        //deug!("stack bottom: {:#x}, stack top: {:#x}", kstack.bottom(), kstack.top());
         /*
-        debug!("new_init proc");
+        //deug!("new_init proc");
         assert_has_not_been_called!();
         let kstack = Box::new([0u8; 1<<12]);
         let stack_bottom = Box::into_raw(kstack);
         let stack_top = (1<<12) + stack_bottom as usize;
-        debug!("stack bottom: {:#x}, stack top: {:#x}", stack_bottom as usize, stack_top);
+        //deug!("stack bottom: {:#x}, stack top: {:#x}", stack_bottom as usize, stack_top);
         // let rsp = unsafe{ (stack_top as *mut TrapFrame).offset(-1) } as usize;
         let kstack = unsafe{ Box::from_raw(stack_bottom) };*/
         Process {
@@ -97,7 +97,7 @@ impl Process {
     /// Make a new user thread
     /// The program elf data is placed at [begin, end)
     pub fn new_user(begin: usize, end: usize, act: &mut ActivePageTable) -> Self {
-        debug!("new user\nbegin={:#x} end={:#x}",begin,end);
+        //deug!("new user\nbegin={:#x} end={:#x}",begin,end);
         // Parse elf
         let slice = unsafe{ slice::from_raw_parts(begin as *const u8, end - begin) };
         let elf = ElfFile::new(slice).expect("failed to read elf");
@@ -108,12 +108,12 @@ impl Process {
         memory_set.push(MemoryArea::new(USER_STACK_OFFSET, USER_STACK_OFFSET + USER_STACK_SIZE,
                                         EntryFlags::WRITABLE | EntryFlags::NO_EXECUTE | EntryFlags::USER_ACCESSIBLE, "user_stack"));
         let page_table = memory::make_page_table(&memory_set,act);
-        debug!("{:#x?}", memory_set);
-        debug!("{:?}", page_table);
+        //deug!("{:#x?}", memory_set);
+        //deug!("{:?}", page_table);
 
         // Temporary switch to it, in order to copy data
         let backup = act.switch(page_table);
-        debug!("switch page_table over");
+        //deug!("switch page_table over");
         for ph in elf.program_iter() {
             let ph = match ph {
                 ProgramHeader::Ph64(ph) => ph,
@@ -122,22 +122,22 @@ impl Process {
             unsafe { memcpy(ph.virtual_addr as *mut u8, (begin + ph.offset as usize) as *mut u8, ph.file_size as usize) };
         }
         let page_table=act.switch(backup);
-        debug!("switch backup over");
+        //deug!("switch backup over");
 
         let entry_addr = match elf.header.pt2 {
             HeaderPt2::Header64(header) => header.entry_point,
             _ => {
-                debug!("elf header fail");
+                //deug!("elf header fail");
                 unimplemented!();
             },
         } as usize;
-        debug!("entry_addr:{:#x}",entry_addr);
+        //deug!("entry_addr:{:#x}",entry_addr);
 
         // Allocate kernel stack and push trap frame
         let kstack = memory::alloc_stack(7).unwrap();
         let tf = TrapFrame::new_user_thread(entry_addr, USER_STACK_OFFSET + USER_STACK_SIZE);
-        debug!("begin:{:#x}, end: {:#x}",begin,end);
-        debug!("entry_addr:{:#x}, rsp: {:#x}, rip: {:#x}",entry_addr, tf.rsp, tf.rip);
+        //deug!("begin:{:#x}, end: {:#x}",begin,end);
+        //deug!("entry_addr:{:#x}, rsp: {:#x}, rip: {:#x}",entry_addr, tf.rsp, tf.rip);
         let rsp = kstack.push_at_top(tf);
 
         Process {
@@ -155,14 +155,14 @@ impl Process {
 
     /// Fork
     pub fn fork(&self, stf: &TrapFrame, act: &mut ActivePageTable) -> Self {
-        //debug!("fork:{}",self.pid);
+        ////deug!("fork:{}",self.pid);
         let curr_rsp: usize;
         unsafe{
             asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
         }
-        debug!("currsp={:#x} stf.rsp={:#x}",curr_rsp,stf.rsp);
+        //deug!("currsp={:#x} stf.rsp={:#x}",curr_rsp,stf.rsp);
         let kstack = memory::alloc_stack(7).unwrap();
-        debug!("stack bottom: {:#x}, stack top: {:#x}", kstack.bottom(), kstack.top());
+        //deug!("stack bottom: {:#x}, stack top: {:#x}", kstack.bottom(), kstack.top());
         let mut tf = stf.clone();
         // let tf2 = TrapFrame::new_user_thread(tf.rip, USER_STACK_OFFSET + USER_STACK_SIZE);
         // use core::mem::size_of;
@@ -173,13 +173,13 @@ impl Process {
         // tf.rflags=tf2.rflags;
         let rsp = kstack.push_at_top(tf);
         //kstack.push_at_top(tf.rsp);
-        debug!("rsp={:#x}",rsp);
+        //deug!("rsp={:#x}",rsp);
         // tf.rsp=rsp;
         /*
         let kstack = Box::new([0u8; 1<<12]);
         let stack_bottom = Box::into_raw(kstack);
         let stack_top = (1<<12) + stack_bottom as usize;
-        debug!("stack bottom: {:#x}, stack top: {:#x}", stack_bottom as usize, stack_top);
+        //deug!("stack bottom: {:#x}, stack top: {:#x}", stack_bottom as usize, stack_top);
         let rsp = unsafe{ (stack_top as *mut TrapFrame).offset(-1) } as usize;
         //let rsp=0xffffff000010cea0;
         //let rsp=0xffffe80000003d60;
@@ -189,8 +189,8 @@ impl Process {
         // *tf = TrapFrame::new_kernel_thread(entry, kstack.top().0 as usize);
         *tf = (*stf).clone();
         tf.rsp=stack_top;*/
-        //debug!("rsp={:#x} rip={:#x} cs={:#x} ss={:#x}",tf.rsp,tf.rip,tf.cs,tf.ss);
-        debug!("finish fork");
+        ////deug!("rsp={:#x} rip={:#x} cs={:#x} ss={:#x}",tf.rsp,tf.rip,tf.cs,tf.ss);
+        //deug!("finish fork");
         Process {
             pid: 0,
             name: "fork",
