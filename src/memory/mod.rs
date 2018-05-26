@@ -21,29 +21,11 @@ pub mod address;
 mod frame;
 pub mod memory_set;
 
-//pub mod heap;
-
-#[derive(PartialEq,Debug,Copy,Clone)]
-/// Memory protection flags
-pub enum ProtectionMode
-{
-	/// Inaccessible
-	Unmapped,
-	/// Kernel readonly
-	KernelRO,
-	KernelRW,	// Kernel read-write
-	KernelRX,	// Kernel read-execute
-	UserRO,	// User
-	UserRW,
-	UserRX,
-	UserCOW,	// User Copy-on-write (becomes UserRW on write)
-	UserRWX,	// AVOID - Read-Write-Execute (exists for internal reasons)
-}
-
-pub static ALLOCATOR: Mutex<Option<RecycleAllocator<BumpAllocator>>> = Mutex::new(None);
+pub static FRAME_ALLOCATOR: Mutex<Option<RecycleAllocator<BumpAllocator>>> = Mutex::new(None);
 pub static STACK_ALLOCATOR: Mutex<Option<StackAllocator>> = Mutex::new(None);
 
 pub fn page_fault_handler(addr: VirtualAddress) -> bool {
+    
     return false;
 }
 
@@ -56,13 +38,13 @@ pub fn init(boot_info: &BootInformation) -> ActivePageTable {
     let elf_sections_tag = boot_info.elf_sections_tag().expect(
         "Elf sections tag required");
 
-    let kernel_start = PhysicalAddress(elf_sections_tag.sections()
+    let kernel_start = PAddr(elf_sections_tag.sections()
         .filter(|s| s.is_allocated()).map(|s| s.start_address()).min().unwrap() as u64);
-    let kernel_end = PhysicalAddress::from_kernel_virtual(elf_sections_tag.sections()
+    let kernel_end = PAddr::from_kernel_virtual(elf_sections_tag.sections()
         .filter(|s| s.is_allocated()).map(|s| s.end_address()).max().unwrap() as usize);
 
-    let boot_info_start = PhysicalAddress(boot_info.start_address() as u64);
-    let boot_info_end = PhysicalAddress(boot_info.end_address() as u64);
+    let boot_info_start = PAddr(boot_info.start_address() as u64);
+    let boot_info_end = PAddr(boot_info.end_address() as u64);
 
     println!("kernel start: {:#x}, kernel end: {:#x}",
              kernel_start,
@@ -75,22 +57,7 @@ pub fn init(boot_info: &BootInformation) -> ActivePageTable {
         println!("{:?}", area);
     }    
 
-    // let mut frame_allocator = AreaFrameAllocator::new(
-    //     kernel_start, kernel_end,
-    //     boot_info_start, boot_info_end,
-    //     memory_map_tag.memory_areas());
-
-    // // Copy memory map from bootloader location
-    // unsafe {
-    //     for (i, entry) in MEMORY_MAP.iter_mut().enumerate() {
-    //         *entry = *(0x500 as *const MemoryArea).offset(i as isize);
-    //         if entry._type != MEMORY_AREA_NULL {
-    //             println!("index {}, entry: {},{},{},{}", i, entry.base_addr, entry.length, entry._type, entry.acpi);
-    //         }
-    //     }
-    // }
-    // *ALLOCATOR.lock() = Some(RecycleAllocator::new(BumpAllocator::new(kernel_start.0 as usize, kernel_end.0 as usize, MemoryAreaIter::new(MEMORY_AREA_FREE))));
-    *ALLOCATOR.lock() = Some(RecycleAllocator::new(BumpAllocator::new(kernel_start.0 as usize, kernel_end.0 as usize, memory_map_tag.memory_areas())));
+    *FRAME_ALLOCATOR.lock() = Some(RecycleAllocator::new(BumpAllocator::new(kernel_start.0 as usize, kernel_end.0 as usize, memory_map_tag.memory_areas())));
 
     unsafe{ init_pat(); }
     let mut active_table = remap_the_kernel(boot_info);
@@ -135,7 +102,7 @@ unsafe fn init_pat() {
 /// Init memory module after core
 /// Must be called once, and only once,
 pub unsafe fn init_noncore() {
-    if let Some(ref mut allocator) = *ALLOCATOR.lock() {
+    if let Some(ref mut allocator) = *FRAME_ALLOCATOR.lock() {
         allocator.set_noncore(true)
     } else {
         panic!("frame allocator not initialized");
@@ -144,7 +111,7 @@ pub unsafe fn init_noncore() {
 
 /// Get the number of frames available
 pub fn free_frames() -> usize {
-    if let Some(ref allocator) = *ALLOCATOR.lock() {
+    if let Some(ref allocator) = *FRAME_ALLOCATOR.lock() {
         allocator.free_frames()
     } else {
         panic!("frame allocator not initialized");
@@ -153,7 +120,7 @@ pub fn free_frames() -> usize {
 
 /// Get the number of frames used
 pub fn used_frames() -> usize {
-    if let Some(ref allocator) = *ALLOCATOR.lock() {
+    if let Some(ref allocator) = *FRAME_ALLOCATOR.lock() {
         allocator.used_frames()
     } else {
         panic!("frame allocator not initialized");
@@ -162,7 +129,7 @@ pub fn used_frames() -> usize {
 
 /// Allocate a range of frames
 pub fn allocate_frames(count: usize) -> Option<Frame> {
-    if let Some(ref mut allocator) = *ALLOCATOR.lock() {
+    if let Some(ref mut allocator) = *FRAME_ALLOCATOR.lock() {
         allocator.allocate_frames(count)
     } else {
         panic!("frame allocator not initialized");
@@ -171,14 +138,14 @@ pub fn allocate_frames(count: usize) -> Option<Frame> {
 
 /// Deallocate a range of frames frame
 pub fn deallocate_frames(frame: Frame, count: usize) {
-    if let Some(ref mut allocator) = *ALLOCATOR.lock() {
+    if let Some(ref mut allocator) = *FRAME_ALLOCATOR.lock() {
         allocator.deallocate_frames(frame, count)
     } else {
         panic!("frame allocator not initialized");
     }
 }
 
-pub fn alloc_stack(count: usize) -> Option<Stack> {
+pub fn alloc_stacks(count: usize) -> Option<Stack> {
     if let Some(ref mut allocator) = *STACK_ALLOCATOR.lock() {
         allocator.alloc_stacks(count)
     } else {
@@ -285,7 +252,7 @@ pub fn remap_the_kernel(boot_info: &BootInformation) -> ActivePageTable
     println!("NEW TABLE!!!");
 
     // extern { fn stack_bottom(); }
-    // let stack_bottom = PhysicalAddress(stack_bottom as u64).to_kernel_virtual();
+    // let stack_bottom = PAddr(stack_bottom as u64).to_kernel_virtual();
     // let stack_bottom_page = Page::containing_address(stack_bottom);
     // active_table.unmap(stack_bottom_page);
     // let kernel_stack = Stack::new(stack_bottom + 8 * PAGE_SIZE, stack_bottom + 1 * PAGE_SIZE);

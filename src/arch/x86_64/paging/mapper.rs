@@ -22,10 +22,10 @@ impl Mapper {
         unsafe { self.p4.as_mut() }
     }
 
-    pub fn translate(&self, virtual_address: VirtualAddress) -> Option<PhysicalAddress> {
+    pub fn translate(&self, virtual_address: VirtualAddress) -> Option<PAddr> {
         let offset = virtual_address % PAGE_SIZE;
         self.translate_page(Page::containing_address(virtual_address))
-            .map(|frame| PhysicalAddress((frame.start_address().get() + offset) as u64))
+            .map(|frame| PAddr((frame.start_address().get() + offset) as u64))
     }
 
     pub fn translate_page(&self, page: Page) -> Option<Frame> {

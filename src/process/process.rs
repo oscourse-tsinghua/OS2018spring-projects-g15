@@ -10,7 +10,7 @@ use rlibc::memcpy;
 use memory;
 use memory::Stack;
 use memory::memory_set::{MemoryArea,MemorySet};
-use memory::PhysicalAddress;
+use memory::PAddr;
 use memory::address::FromToVirtualAddress;
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ impl Process {
         // let kstack = Stack::new().expect(&error_log);
         // let rsp = unsafe{ (kstack.top().0 as *mut TrapFrame).offset(-1) } as usize;
         //let kstack = Box::new([0u8; 1<<12]);
-        let kstack = memory::alloc_stack(7).unwrap();
+        let kstack = memory::alloc_stacks(7).unwrap();
         let tf = TrapFrame::new_kernel_thread(entry, kstack.top());
         let rsp = kstack.push_at_top(tf);/*
         let stack_bottom = Box::into_raw(kstack);
@@ -70,7 +70,7 @@ impl Process {
     /// Make the first kernel thread `initproc`
     /// Should be called only once
     pub fn new_init() -> Self {
-        let kstack=memory::alloc_stack(7).unwrap();
+        let kstack=memory::alloc_stacks(7).unwrap();
         //deug!("stack bottom: {:#x}, stack top: {:#x}", kstack.bottom(), kstack.top());
         /*
         //deug!("new_init proc");
@@ -134,7 +134,7 @@ impl Process {
         //deug!("entry_addr:{:#x}",entry_addr);
 
         // Allocate kernel stack and push trap frame
-        let kstack = memory::alloc_stack(7).unwrap();
+        let kstack = memory::alloc_stacks(7).unwrap();
         let tf = TrapFrame::new_user_thread(entry_addr, USER_STACK_OFFSET + USER_STACK_SIZE);
         //deug!("begin:{:#x}, end: {:#x}",begin,end);
         //deug!("entry_addr:{:#x}, rsp: {:#x}, rip: {:#x}",entry_addr, tf.rsp, tf.rip);
@@ -161,7 +161,7 @@ impl Process {
             asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
         }
         //deug!("currsp={:#x} stf.rsp={:#x}",curr_rsp,stf.rsp);
-        let kstack = memory::alloc_stack(7).unwrap();
+        let kstack = memory::alloc_stacks(7).unwrap();
         //deug!("stack bottom: {:#x}, stack top: {:#x}", kstack.bottom(), kstack.top());
         let mut tf = stf.clone();
         // let tf2 = TrapFrame::new_user_thread(tf.rip, USER_STACK_OFFSET + USER_STACK_SIZE);

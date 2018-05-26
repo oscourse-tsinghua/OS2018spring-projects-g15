@@ -6,7 +6,6 @@ use core::ops::{Deref, DerefMut, Add};
 use core::fmt;
 use core::fmt::Debug;
 
-use self::entry::EntryFlags;
 pub use memory::{PAGE_SIZE, Frame, FrameAllocator, VirtualAddress};
 
 pub mod entry;

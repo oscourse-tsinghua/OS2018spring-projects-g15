@@ -10,7 +10,6 @@ use super::sdt::Sdt;
 use super::{AP_STARTUP, TRAMPOLINE, find_sdt, load_table, get_sdt_signature};
 
 use consts;
-use arch::driver::apic::local_apic::LOCAL_APIC;
 use arch::interrupts;
 use rust_main;
 
@@ -40,8 +39,11 @@ impl Madt {
         if let Some(madt) = madt {
             println!("  APIC: {:>08X}: {}", madt.local_address, madt.flags);
 
+            use arch::driver::apic::{local_apic::LOCAL_APIC, IOAPIC};
             let local_apic = unsafe { &mut LOCAL_APIC };
             let me = local_apic.id() as u8;
+            let io_apic = unsafe { &IOAPIC };
+            let io_apic_id = io_apic.lock().id();
 
             if local_apic.x2 {
                 println!("    X2APIC {}", me);
@@ -65,71 +67,71 @@ impl Madt {
                             println!("        This is my local APIC");
                         } else {
                             if ap_local_apic.flags & 1 == 1 {
-                                // Increase CPU ID
-                                CPU_COUNT.fetch_add(1, Ordering::SeqCst);
+                            //     // Increase CPU ID
+                            //     CPU_COUNT.fetch_add(1, Ordering::SeqCst);
 
-                                // Allocate a stack
-                                let stack_start = allocate_frames(64).expect("no more frames in acpi stack_start").start_address().0 as usize + consts::KERNEL_OFFSET;
-                                let stack_end = stack_start + 64 * 4096;
+                            //     // Allocate a stack
+                            //     let stack_start = allocate_frames(64).expect("no more frames in acpi stack_start").start_address().0 as usize + consts::KERNEL_OFFSET;
+                            //     let stack_end = stack_start + 64 * 4096;
 
-                                let ap_ready = TRAMPOLINE as *mut u64;
-                                let ap_cpu_id = unsafe { ap_ready.offset(1) };
-                                let ap_page_table = unsafe { ap_ready.offset(2) };
-                                let ap_stack_start = unsafe { ap_ready.offset(3) };
-                                let ap_stack_end = unsafe { ap_ready.offset(4) };
-                                let ap_code = unsafe { ap_ready.offset(5) };
+                            //     let ap_ready = TRAMPOLINE as *mut u64;
+                            //     let ap_cpu_id = unsafe { ap_ready.offset(1) };
+                            //     let ap_page_table = unsafe { ap_ready.offset(2) };
+                            //     let ap_stack_start = unsafe { ap_ready.offset(3) };
+                            //     let ap_stack_end = unsafe { ap_ready.offset(4) };
+                            //     let ap_code = unsafe { ap_ready.offset(5) };
 
-                                // Set the ap_ready to 0, volatile
-                                unsafe { atomic_store(ap_ready, 0) };
-                                unsafe { atomic_store(ap_cpu_id, ap_local_apic.id as u64) };
-                                unsafe { atomic_store(ap_page_table, active_table.address() as u64) };
-                                unsafe { atomic_store(ap_stack_start, stack_start as u64) };
-                                unsafe { atomic_store(ap_stack_end, stack_end as u64) };
-                                unsafe { atomic_store(ap_code, rust_main as u64) };
-                                AP_READY.store(false, Ordering::SeqCst);
+                            //     // Set the ap_ready to 0, volatile
+                            //     unsafe { atomic_store(ap_ready, 0) };
+                            //     unsafe { atomic_store(ap_cpu_id, ap_local_apic.id as u64) };
+                            //     unsafe { atomic_store(ap_page_table, active_table.address() as u64) };
+                            //     unsafe { atomic_store(ap_stack_start, stack_start as u64) };
+                            //     unsafe { atomic_store(ap_stack_end, stack_end as u64) };
+                            //     unsafe { atomic_store(ap_code, rust_main as u64) };
+                            //     AP_READY.store(false, Ordering::SeqCst);
 
-                                print!("        AP {}:", ap_local_apic.id);
+                            //     print!("        AP {}:", ap_local_apic.id);
 
-                                // Send INIT IPI
-                                {
-                                    let mut icr = 0x4500;
-                                    if local_apic.x2 {
-                                        icr |= (ap_local_apic.id as u64) << 32;
-                                    } else {
-                                        icr |= (ap_local_apic.id as u64) << 56;
-                                    }
-                                    print!(" IPI...");
-                                    local_apic.set_icr(icr);
-                                }
+                            //     // Send INIT IPI
+                            //     {
+                            //         let mut icr = 0x4500;
+                            //         if local_apic.x2 {
+                            //             icr |= (ap_local_apic.id as u64) << 32;
+                            //         } else {
+                            //             icr |= (ap_local_apic.id as u64) << 56;
+                            //         }
+                            //         print!(" IPI...");
+                            //         local_apic.set_icr(icr);
+                            //     }
 
-                                // Send START IPI
-                                {
-                                    //Start at 0x0800:0000 => 0x8000. Hopefully the bootloader code is still there
-                                    let ap_segment = (AP_STARTUP >> 12) & 0xFF;
-                                    let mut icr = 0x4600 | ap_segment as u64;
+                            //     // Send START IPI
+                            //     {
+                            //         //Start at 0x0800:0000 => 0x8000. Hopefully the bootloader code is still there
+                            //         let ap_segment = (AP_STARTUP >> 12) & 0xFF;
+                            //         let mut icr = 0x4600 | ap_segment as u64;
 
-                                    if local_apic.x2 {
-                                        icr |= (ap_local_apic.id as u64) << 32;
-                                    } else {
-                                        icr |= (ap_local_apic.id as u64) << 56;
-                                    }
+                            //         if local_apic.x2 {
+                            //             icr |= (ap_local_apic.id as u64) << 32;
+                            //         } else {
+                            //             icr |= (ap_local_apic.id as u64) << 56;
+                            //         }
 
-                                    print!(" SIPI...");
-                                    local_apic.set_icr(icr);
-                                }
+                            //         print!(" SIPI...");
+                            //         local_apic.set_icr(icr);
+                            //     }
 
-                                // Wait for trampoline ready
-                                print!(" Wait...");
-                                while unsafe { atomic_load(ap_ready) } == 0 {
-                                    interrupts::pause();
-                                }
-                                print!(" Trampoline...");
-                                while ! AP_READY.load(Ordering::SeqCst) {
-                                    interrupts::pause();
-                                }
-                                println!(" Ready");
+                            //     // Wait for trampoline ready
+                            //     print!(" Wait...");
+                            //     while unsafe { atomic_load(ap_ready) } == 0 {
+                            //         interrupts::pause();
+                            //     }
+                            //     print!(" Trampoline...");
+                            //     while ! AP_READY.load(Ordering::SeqCst) {
+                            //         interrupts::pause();
+                            //     }
+                            //     println!(" Ready");
 
-                                active_table.flush_all();
+                            //     active_table.flush_all();
                             } else {
                                 println!("        CPU Disabled");
                             }
@@ -143,7 +145,7 @@ impl Madt {
                 result.flush(active_table);
             }
             use arch::driver::apic;
-            apic::init(local_apic.address as *const (), local_apic.id() as u8);
+            apic::init(local_apic.address as *const (), io_apic_id as u8);
         }
     }
 

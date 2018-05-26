@@ -1,4 +1,4 @@
-use memory::PhysicalAddress;
+use memory::PAddr;
 
 pub const PAGE_SIZE: usize = 4096;
 
@@ -12,8 +12,8 @@ impl Frame {
         Frame{ number: address / PAGE_SIZE }
     }
 
-    pub fn start_address(&self) -> PhysicalAddress {
-        PhysicalAddress((self.number * PAGE_SIZE) as u64)
+    pub fn start_address(&self) -> PAddr {
+        PAddr((self.number * PAGE_SIZE) as u64)
     }
 
     pub fn clone(&self) -> Frame {

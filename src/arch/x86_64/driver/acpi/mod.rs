@@ -37,8 +37,6 @@ mod aml;
 mod rxsdt;
 mod rsdp;
 
-use consts::*;
-
 const TRAMPOLINE: usize = 0x7E00;
 const AP_STARTUP: usize = TRAMPOLINE + 512;
 
