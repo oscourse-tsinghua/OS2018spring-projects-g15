@@ -34,11 +34,33 @@ use arch::driver::pic::ack;
 
 use consts::irq::*;
 
+use spin::Mutex;
+static IN_TIMER: Mutex<Option<bool>> = Mutex::new(Some(false));
+
 fn keyboard() {
-    use arch::driver::keyboard;
-    debug!("\nInterupt: Keyboard");
-    let c = keyboard::get();
-    debug!("Key = '{}' {}", c as u8 as char, c);
+    // use arch::driver::keyboard;
+    // debug!("\nInterupt: Keyboard");
+    // let c = keyboard::get();
+    // debug!("Key = '{}' {}", c as u8 as char, c);
+    if let Some(ref mut in_t) = *IN_TIMER.lock() {
+        *in_t = true;
+    }
+
+        use modules::ps2::handle_irq_kbd;
+        handle_irq_kbd();
+
+    if let Some(ref mut in_t) = *IN_TIMER.lock() {
+        *in_t = false;
+    }
+}
+
+fn mouse() {
+    if let Some(ref in_t) = *IN_TIMER.lock() {
+        if !*in_t {
+            use modules::ps2::handle_irq_mouse;
+            handle_irq_mouse();
+        }
+    }
 }
 
 fn com1() {
@@ -54,14 +76,19 @@ fn com2() {
 }
 
 fn timer(tf: &mut TrapFrame, rsp: &mut usize) {
+
     static mut tick: usize = 0;
     unsafe {
         tick += 1;
         if tick % 100 == 0 {
             debug!("tick 100");
-            use process;
-            process::schedule(rsp);
-            debug!("finish schedule");
+            if let Some(ref in_t) = *IN_TIMER.lock() {
+                if !*in_t {
+                    use process;
+                    process::schedule(rsp);
+                    debug!("finish schedule");
+                }
+            }
         }
     }
 }
@@ -108,6 +135,7 @@ pub extern fn rust_trap(tf: &mut TrapFrame) -> usize {
             match irq {
                 IRQ_TIMER => timer(tf, &mut rsp),
                 IRQ_KBD => keyboard(),
+                IRQ_MOUSE => mouse(),
                 IRQ_COM1 => com1(),
                 IRQ_COM2 => com2(),
                 _ => panic!("Invalid IRQ number."),
