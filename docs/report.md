@@ -576,6 +576,104 @@ impl PS2Dev {
 
 这是处理时的简单框架，可以看到通过使用嵌套的 `match` 操作进行状态的判断和处理十分方便。
 
+### 进程控制
+我们首先定义进程控制块，记录进程的基本信息。
+
+```rust
+pub struct Process {
+    pub(in process) pid: Pid,
+                    name: &'static str,
+                    kstack: Stack,
+    pub(in process) memory_set: Option<MemorySet>,
+    pub(in process) page_table: Option<InactivePageTable>,
+    pub(in process) status: Status,
+    pub(in process) rsp: usize,
+    pub(in process) is_user: bool,
+}
+```
+
+在创建内核线程时，由于所有内核线程共用页表和内存空间，我们只需要为新的线程设置必要信息，开辟栈空间并设置相应寄存器即可。同时，为了在切换后执行新的进程，我们需要构造 `trapframe`, 设置 `cs`, `ss` 等段寄存器并将 `rip` 设置为新线程入口函数地址。
+
+```rust
+// construct trapframe
+pub fn new_kernel_thread(code: extern fn(), rsp: usize) -> Self {
+    use arch::gdt;
+    let mut tf = TrapFrame::default();
+    println!("KCODE_SELECTOR={:#x} KDATA_SELECTOR={:#x}",gdt::KCODE_SELECTOR.0,gdt::KDATA_SELECTOR.0);
+    println!("UCODE_SELECTOR={:#x} UDATA_SELECTOR={:#x}",gdt::UCODE_SELECTOR.0,gdt::UDATA_SELECTOR.0);
+    tf.cs = gdt::KCODE_SELECTOR.0 as usize;
+    tf.rip = code as usize;
+    tf.ss = gdt::KDATA_SELECTOR.0 as usize;
+    tf.rsp = rsp;
+    tf.rflags = 0x282;
+    tf
+}
+
+// construct a new kernel thread
+pub fn new(name: &'static str, entry: extern fn()) -> Self {
+    let kstack = memory::alloc_stacks(7).unwrap();
+    let tf = TrapFrame::new_kernel_thread(entry, kstack.top());
+    let rsp = kstack.push_at_top(tf);
+
+    Process {
+        pid: 0,
+        name,
+        kstack,
+        memory_set: None,
+        page_table: None,
+        status: Status::Ready,
+        rsp,
+        is_user: false,
+    }
+}
+```
+
+为了实现进程调度，我们需要定义调度器，并且为调度器实现添加/移除就绪进程，响应时钟中断对调度器中的就绪进程信息进行更新，选择下一个将要执行的进程等操作。
+
+调度器结构如下：
+
+```rust
+pub struct Processor {
+    active_table: RefCell<ActivePageTable>,
+    procs: BTreeMap<Pid, Process>,
+    current_pid: Pid,
+}
+```
+
+这里我们参考了 G11 组的实现，使用了 `rust` 提供的 `BTreeMap` 数据结构维护进程列表，提高了查找效率同时简化编码复杂度。
+
+与之前类似，我们使用 `Once` 对全局调度器进行封装，保证调度器被初始化一次，提高安全性。添加进程与调度的过程比较简单，只需要为进程分配 `pid` 并加入列表即可，在调度时从列表中选择下一个进程并进行切换。我们实现的简单的 `Round Robin` 调度算法，每次时钟中断减少当前进程的时间片，当时间片计数为 0 时进行进程调度，切换至下一个进程。
+
+其中，进程切换需要我们保存当前 `rsp` 并将 `rsp` 设置为下一个进程的栈位置。
+
+```rust
+    fn switch_to(&mut self, pid: Pid, rsp: &mut usize) {
+        let pid0 = self.current_pid;
+        let rsp0 = *rsp;
+
+        let curr_rsp: usize;
+        unsafe{
+            asm!("" : "={rsp}"(curr_rsp) : : : "intel", "volatile");
+        }
+
+        if pid == self.current_pid {
+            return;
+        }
+        {
+            let current = self.procs.get_mut(&self.current_pid).unwrap();
+            current.status = Status::Ready;
+            current.rsp = *rsp;
+        }
+        {
+
+            let process = self.procs.get_mut(&pid).unwrap();
+            process.status = Status::Running;
+            *rsp = process.rsp;
+        }
+        self.current_pid = pid;
+    }
+```
+
 ### 实现 IDE 硬盘驱动，能够完成 IO 操作
 
 参考ucore实现了ide硬盘驱动。
