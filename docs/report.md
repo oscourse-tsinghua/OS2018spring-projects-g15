@@ -110,7 +110,7 @@ G15 小组：乔一凡 杨国炜
 
 ## 配置运行
 
-运行 `rucore` 需要如下依赖 `rustc`, `rustup`, `cargo`, `xargo`, `x86_64-gcc`, `x86_64-binutils`。
+运行 `rucore` 需要如下依赖 `nasm`, `grub-mkrescue`, `xorriso`, `qemu`, `rustc`, `rustup`, `cargo`, `xargo`, `x86_64-elf-gcc`, `x86_64-elf-binutils`。
 
 由于 `Rust` 是一门相对年轻的语言，编译器更新很快，语言特性还在不断修改中，新版的 `rustc` 编译器可能无法顺利编译我们的代码。所以我们固定 `rustc` 版本为 `rustc 1.26.0-nightly (9c9424de5 2018-03-27)`
 可以使用 `rustup` 进行 `rustc` 版本管理：
