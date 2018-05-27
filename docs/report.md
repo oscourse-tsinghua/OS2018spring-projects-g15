@@ -688,15 +688,13 @@ pub struct Processor {
 
 我基于上面实现的IDE driver，参考ucore及rust_os完成了基于硬盘的简单文件系统，该文件系统能处理以下几种类型的文件，其中Symlink实现的是软链接机制：
 
-* pub enum NodeType<'a>{
-
-  ​    File,  //常规文件类型
-
-  ​    Dir,  //文件夹类型
-
-  ​    Symlink(&'a super::Path),  //链接类型，允许读取链接内容
-
-  }
+```rust
+pub enum NodeType<'a>{
+​    File,  //常规文件类型
+​    Dir,  //文件夹类型
+​    Symlink(&'a super::Path),  //链接类型，允许读取链接内容
+}
+```
 
 对三种不同类型文件的基本操作包括
 
