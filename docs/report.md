@@ -116,7 +116,7 @@ G15 小组：乔一凡 杨国炜
 可以使用 `rustup` 进行 `rustc` 版本管理：
 
 ```bash
-rustup default nightly-2018-01-09
+rustup default nightly-2018-03-27
 rustup component add rust-src
 ```
 

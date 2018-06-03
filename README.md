@@ -24,7 +24,7 @@ curl https://sh.rustup.rs -sSf | sh
 可以使用 `rustup` 进行 `rustc` 版本管理：
 
 ```bash
-rustup default nightly-2018-01-09
+rustup default nightly-2018-03-27
 rustup component add rust-src
 ```
 
